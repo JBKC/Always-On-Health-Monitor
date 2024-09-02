@@ -1,4 +1,6 @@
-
+'''
+Separate PPG signal into BVP and motion artifact components
+'''
 
 
 

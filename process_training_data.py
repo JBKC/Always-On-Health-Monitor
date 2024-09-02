@@ -29,16 +29,52 @@ def save_data(session, data_dict):
 
     return data_dict
 
-def window_data(data_dict):
-    return
+def window_data(data_dict, sessions):
+    '''
+    Segment data into windows of 8 seconds with 2 second overlap
+    :param data_dict: dictionary with all signals in arrays
+    :param sessions: list of sessions
+    :return: dictionary with windowed signals
+    '''
+
+    fs = {
+        'ppg': 64,
+        'acc': 32
+    }
+
+    for session in sessions:
+        for k, v in fs.items():
+
+            window = 8 * v
+            step = 2 * v
+
+            data = data_dict[session][k]
+            len_signal = len(data)
+            n_windows = int((len_signal - window) / step + 1)
+
+            if len(data.shape) == 1:
+                # PPG
+                data_dict[session][k] = np.zeros((window, n_windows))
+                for i in range(n_windows):
+                    start = i * step
+                    end = start + window
+                    data_dict[session][k][:, i] = data[start:end]
+            else:
+                # accelerometer
+                data_dict[session][k] = np.zeros((window, data.shape[1], n_windows))
+                for i in range(n_windows):
+                    start = i * step
+                    end = start + window
+                    data_dict[session][k][:, :, i] = data[start:end, :]
+
+    return data_dict
 
 
 def main():
 
-    def save_dict(filename='ppg_dalia_dict'):
+    def save_dict(sessions, filename='ppg_dalia_dict'):
 
         # create dictionary to hold all data
-        sessions = [f'S{i}' for i in range(1, 16)]
         data_dict = {f'{session}': {} for session in sessions}
 
         # iterate over sessions
@@ -59,12 +95,14 @@ def main():
             print(f'Data dictionary loaded from {filename}')
             return data_dict
 
+    sessions = [f'S{i}' for i in range(1, 16)]
+
     # comment out save or load
-    # save_dict()
+    # save_dict(sessions)
     data_dict = load_dict()
 
     # window data
-    data_dict = window_data(data_dict)
+    data_dict = window_data(data_dict, sessions)
 
     # remove motion artifacts
     motion_artifact_removal.main(data_dict)
