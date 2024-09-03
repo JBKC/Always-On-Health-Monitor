@@ -36,7 +36,7 @@ def window_data(data_dict, sessions):
     :param sessions: list of sessions
     :return: dictionary with windowed signals:
         ppg.shape = (window length, n_windows)
-        acc.shape = (window length, 3, n_windows)
+        acc.shape = (3, 256, n_windows) - to match Pytorch format
     '''
 
     fs = {
@@ -61,13 +61,16 @@ def window_data(data_dict, sessions):
                     start = i * step
                     end = start + window
                     data_dict[session][k][:, i] = data[start:end]
+
             else:
                 # accelerometer
-                data_dict[session][k] = np.zeros((window, data.shape[1], n_windows))
+                data_dict[session][k] = np.zeros((data.shape[-1], window, n_windows))
                 for i in range(n_windows):
                     start = i * step
                     end = start + window
-                    data_dict[session][k][:, :, i] = data[start:end, :]
+                    data_dict[session][k][:, :, i] = data[start:end, :].T
+
+    print(data_dict['S1']['acc'].shape)
 
     return data_dict
 
