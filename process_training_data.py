@@ -19,9 +19,13 @@ def save_data(session, data_dict):
         print(f'saving {session}')
         data = pickle.load(file, encoding='latin1')
 
-        data_dict[session]['ppg'] = unpack(data['signal']['wrist']['BVP'])
+        data_dict[session]['ppg'] = unpack(data['signal']['wrist']['BVP'][::2])     # downsample PPG to match fs_acc
         data_dict[session]['acc'] = unpack(data['signal']['wrist']['ACC'])
         data_dict[session]['label'] = unpack(data['label'])        # ground truth EEG
+
+        # small correction to data
+        data_dict[session]['ppg'] = data_dict[session]['ppg'][38:, ...]
+        data_dict[session]['acc'] = data_dict[session]['acc'][:-38, ...]
 
         # plt.plot(data_dict[session]['ppg'])
         # plt.show()
@@ -33,7 +37,7 @@ def window_data(data_dict, sessions):
     Segment data into windows of 8 seconds with 2 second overlap
     :param data_dict: dictionary with all signals in arrays
     :param sessions: list of sessions
-    :return: dictionary with windowed signals:
+    :return: windowed signals containing X and Y data
         ppg.shape = (window length, n_windows)
         acc.shape = (3, 256, n_windows) - to match Pytorch format
     '''
@@ -69,10 +73,30 @@ def window_data(data_dict, sessions):
                     end = start + window
                     data_dict[session][k][:, :, i] = data[start:end, :].T
 
+    print(data_dict['S1']['ppg'].shape)
     print(data_dict['S1']['acc'].shape)
 
     return data_dict
 
+def ma_removal(data_dict):
+    '''
+    Remove motion artifacts from raw PPG data by running through
+    :param data_dict: dictionary containing all X and y data
+    :return:
+    '''
+
+    all_data_X = []
+    all_data_y = []
+    all_data_groups = []
+    all_data_activity = []
+
+
+
+
+
+
+
+    return
 
 def main():
 
@@ -101,17 +125,16 @@ def main():
 
     sessions = [f'S{i}' for i in range(1, 16)]
 
-    # comment out save or load
-    # save_dict(sessions)
-    data_dict = load_dict()
+    # comment out save or load (to make a typed input switch)
+    save_dict(sessions)
+    # data_dict = load_dict()
 
     # window data
     data_dict = window_data(data_dict, sessions)
 
     # pass accelerometer data through CNN
+    ma_removal(data_dict)
 
-    # remove motion artifacts
-    motion_artifact_removal.main(data_dict)
 
 if __name__ == '__main__':
     main()
