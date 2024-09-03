@@ -4,7 +4,6 @@ Initial file for pulling and processing training data from PPG-DaLiA dataset
 
 import pickle
 import numpy as np
-import motion_artifact_removal
 import matplotlib.pyplot as plt
 
 def save_data(session, data_dict):
@@ -108,6 +107,8 @@ def main():
 
     # window data
     data_dict = window_data(data_dict, sessions)
+
+    # pass accelerometer data through CNN
 
     # remove motion artifacts
     motion_artifact_removal.main(data_dict)
