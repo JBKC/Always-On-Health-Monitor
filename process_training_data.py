@@ -34,7 +34,9 @@ def window_data(data_dict, sessions):
     Segment data into windows of 8 seconds with 2 second overlap
     :param data_dict: dictionary with all signals in arrays
     :param sessions: list of sessions
-    :return: dictionary with windowed signals
+    :return: dictionary with windowed signals:
+        ppg.shape = (window length, n_windows)
+        acc.shape = (window length, 3, n_windows)
     '''
 
     fs = {
@@ -43,10 +45,10 @@ def window_data(data_dict, sessions):
     }
 
     for session in sessions:
-        for k, v in fs.items():
+        for k, f in fs.items():
 
-            window = 8 * v
-            step = 2 * v
+            window = 8 * f          # size of window
+            step = 2 * f
 
             data = data_dict[session][k]
             len_signal = len(data)
