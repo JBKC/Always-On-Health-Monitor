@@ -13,7 +13,7 @@ def save_data(session, data_dict):
         data = np.squeeze(data)
         return data
 
-    # load relevant data into dictionary
+    # pull raw data
     with open(f'ppg+dalia/{session}/{session}.pkl', 'rb') as file:
 
         print(f'saving {session}')
@@ -22,13 +22,24 @@ def save_data(session, data_dict):
         data_dict[session]['ppg'] = unpack(data['signal']['wrist']['BVP'][::2])     # downsample PPG to match fs_acc
         data_dict[session]['acc'] = unpack(data['signal']['wrist']['ACC'])
         data_dict[session]['label'] = unpack(data['label'])        # ground truth EEG
+        data_dict[session]['activity'] = data['activity']
 
-        # small correction to data
+        # small correction to data - alignment
         data_dict[session]['ppg'] = data_dict[session]['ppg'][38:, ...]
         data_dict[session]['acc'] = data_dict[session]['acc'][:-38, ...]
 
-        # plt.plot(data_dict[session]['ppg'])
-        # plt.show()
+        print(len(data_dict[session]['ppg']))
+        print(len(data_dict[session]['acc']))
+        print(len(data_dict[session]['label']))
+        print(len(data_dict[session]['activity']))
+
+        # window data
+        data_dict = window_data(data_dict, session)
+
+        print(data_dict['S1']['ppg'].shape)
+        print(data_dict['S1']['acc'].shape)
+        print(data_dict['S1']['label'].shape)
+        print(data_dict['S1']['activity'].shape)
 
     return data_dict
 
@@ -72,9 +83,6 @@ def window_data(data_dict, sessions):
                     start = i * step
                     end = start + window
                     data_dict[session][k][:, :, i] = data[start:end, :].T
-
-    print(data_dict['S1']['ppg'].shape)
-    print(data_dict['S1']['acc'].shape)
 
     return data_dict
 
@@ -128,9 +136,6 @@ def main():
     # comment out save or load (to make a typed input switch)
     save_dict(sessions)
     # data_dict = load_dict()
-
-    # window data
-    data_dict = window_data(data_dict, sessions)
 
     # pass accelerometer data through CNN
     ma_removal(data_dict)
