@@ -4,8 +4,11 @@ Initial file for pulling and processing training data from PPG-DaLiA dataset
 
 import pickle
 import numpy as np
-from accelerometer_cnn import AdaptiveLinearModel
 import matplotlib.pyplot as plt
+from tqdm import tqdm
+import torch
+import torch.nn as nn
+from accelerometer_cnn import AdaptiveLinearModel
 
 def save_data(s, data_dict):
     '''
@@ -108,11 +111,12 @@ def normalise(X):
         stds (standard deviations) of shape (4, n_windows)
     '''
 
-    ms = np.zeros((4, X.shape[-1]))                    # mean of each channel
-    stds = np.zeros((4, X.shape[-1]))                  # stdev of each channel
+    ms = np.zeros((4, X.shape[-1]))          # mean of each (channel, window)
+    stds = np.zeros((4, X.shape[-1]))        # stdev of each (channel, window)
 
     # iterate over channels
     for i in range(X.shape[0]):
+        # create term to be updated, X_pres
         X_pres = X[i,:,:]
 
         # iterate over windows
@@ -127,14 +131,14 @@ def normalise(X):
             if std != 0:
                 X_pres[:,j] = X_pres[:,j] / std
 
+            # save ms and stds
             ms[i, j] = m
             stds[i, j] = std
 
+        # fill in X with updated X_pres
         X[i,:,:] = X_pres
 
     return X, ms, stds
-
-
 
 def ma_removal(data_dict, sessions):
     '''
@@ -159,14 +163,10 @@ def ma_removal(data_dict, sessions):
         idx = np.insert(idx, 0, 0)
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
-        for i in range(idx.size -1):
+        for i in tqdm(range(idx.size - 1)):
             # splice X into current activity
             X_pres = X[:,:,idx[i] : idx[i+1]]
-            print(X_pres.shape)
-
-            X, ms, stds = normalise(X_pres)
-
-
+            # print(X_pres.shape)
 
 
 
