@@ -98,6 +98,44 @@ def window_data(data_dict, s):
 
     return data_dict
 
+def normalise(X):
+    '''
+    Z-normalises data for all windows, across each channel
+    :param X: of shape (4, 256, n_windows)
+    :return:
+        normalised X: of shape (4, 256, n_windows)
+        ms (means): of shape (4, n_windows)
+        stds (standard deviations) of shape (4, n_windows)
+    '''
+
+    ms = np.zeros((4, X.shape[-1]))                    # mean of each channel
+    stds = np.zeros((4, X.shape[-1]))                  # stdev of each channel
+
+    # iterate over channels
+    for i in range(X.shape[0]):
+        X_pres = X[i,:,:]
+
+        # iterate over windows
+        for j in range(X_pres.shape[-1]):
+
+            m = np.mean(X_pres[:,j])
+            std = np.std(X_pres[:,j])
+
+            # Z-normalisation
+            X_pres[:,j] = X_pres[:,j] - m
+
+            if std != 0:
+                X_pres[:,j] = X_pres[:,j] / std
+
+            ms[i, j] = m
+            stds[i, j] = std
+
+        X[i,:,:] = X_pres
+
+    return X, ms, stds
+
+
+
 def ma_removal(data_dict, sessions):
     '''
     Remove motion artifacts from raw PPG data by running through accelerometer_cnn
@@ -111,8 +149,8 @@ def ma_removal(data_dict, sessions):
     for s in sessions:
 
         # concatenate ppg + accelerometer signal data
-        X_dict[s] = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=0)
-        # results in shape (4, n_samples, n_windows)
+        X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=0)
+        # X.shape = (4, n_samples, n_windows)
 
         # find indices of activity changes
         idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
@@ -120,6 +158,15 @@ def ma_removal(data_dict, sessions):
         # add indices of start and end points
         idx = np.insert(idx, 0, 0)
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
+
+        for i in range(idx.size -1):
+            # splice X into current activity
+            X_pres = X[:,:,idx[i] : idx[i+1]]
+            print(X_pres.shape)
+
+            X, ms, stds = normalise(X_pres)
+
+
 
 
 
