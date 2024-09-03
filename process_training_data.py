@@ -4,8 +4,8 @@ Initial file for pulling and processing training data from PPG-DaLiA dataset
 
 import pickle
 import numpy as np
+from accelerometer_cnn import AdaptiveLinearModel
 import matplotlib.pyplot as plt
-from skimage.util.shape import view_as_windows
 
 def save_data(s, data_dict):
     '''
@@ -52,7 +52,7 @@ def window_data(data_dict, s):
     Segment data into windows of 8 seconds with 2 second overlap
     :param data_dict: dictionary with all signals in arrays for given session
     :return: dictionary of windowed signals containing X and Y data
-        ppg.shape = (window length, n_windows)
+        ppg.shape = (1, 256, n_windows)
         acc.shape = (3, 256, n_windows) - to match Pytorch format
         labels.shape = (n_windows,)
         activity.shape = (n_windows,)
@@ -75,11 +75,12 @@ def window_data(data_dict, s):
         data = data_dict[s][k]
 
         if k == 'ppg':
-            data_dict[s][k] = np.zeros((window, n_windows))
+            data_dict[s][k] = np.zeros((1, window, n_windows))
             for i in range(n_windows):
                 start = i * step
                 end = start + window
-                data_dict[s][k][:, i] = data[start:end]
+                # add extra dimension to match acc data shape
+                data_dict[s][k][0, :, i] = data[start:end]
 
         if k == 'acc':
             data_dict[s][k] = np.zeros((data.shape[-1], window, n_windows))
@@ -97,12 +98,30 @@ def window_data(data_dict, s):
 
     return data_dict
 
-def ma_removal(data_dict):
+def ma_removal(data_dict, sessions):
     '''
-    Remove motion artifacts from raw PPG data by running through
-    :param data_dict: dictionary containing all X and y data
+    Remove motion artifacts from raw PPG data by running through accelerometer_cnn
+    :param data_dict: dictionary containing ppg, acc, label and activity data for each session
+    :param s: list of sessions
     :return:
     '''
+
+    X_dict = {}             # training data
+
+    for s in sessions:
+
+        # concatenate ppg + accelerometer signal data
+        X_dict[s] = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=0)
+        # results in shape (4, n_samples, n_windows)
+
+        # find indices of activity changes
+        idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
+
+        # add indices of start and end points
+        idx = np.insert(idx, 0, 0)
+        idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
+
+
 
 
     return
@@ -140,7 +159,7 @@ def main():
     data_dict = load_dict()
 
     # pass accelerometer data through CNN
-    ma_removal(data_dict)
+    ma_removal(data_dict, sessions)
 
 
 if __name__ == '__main__':
