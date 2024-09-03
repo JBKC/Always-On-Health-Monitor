@@ -31,13 +31,17 @@ class AdaptiveLinearModel(nn.Module):
         return x[:, 0, :, 0]
 
     def adaptive_loss(self, y_true, y_pred):
+        # define custom loss function: MSE( FFT(CNN output) , FFT(raw PPG input) ) = MSE ( FFT(y_pred), FFT(y_true) )
 
         y_true = y_true[:, 0, :, 0]             # match output of conv layers
-        y_true_fft = torch.fft.fft(y_true.to(torch.complex128))
 
-        y_pred_fft = torch.fft.fft(y_pred.to(torch.complex128))
+        # take FFT
+        y_true_fft = torch.fft.fft(y_true)
+        y_pred_fft = torch.fft.fft(y_pred)
 
+        # calculate error (raw ppg - motion artifact estimate)
         e = torch.abs(y_true_fft - y_pred_fft)
+        # MSE
         e = torch.sum(e ** 2, dim=-1)
 
         return torch.mean(e)
