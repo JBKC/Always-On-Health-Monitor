@@ -5,8 +5,15 @@ Initial file for pulling and processing training data from PPG-DaLiA dataset
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
+from skimage.util.shape import view_as_windows
 
-def save_data(session, data_dict):
+def save_data(s, data_dict):
+    '''
+    Pull raw data from PPG Dalia files and save down to a dictionary
+    :param s: session name
+    :param data_dict: empty dictionary to hold data
+    :return:
+    '''
 
     def unpack(data):
         # data = data.reshape(-1, 1)
@@ -14,75 +21,79 @@ def save_data(session, data_dict):
         return data
 
     # pull raw data
-    with open(f'ppg+dalia/{session}/{session}.pkl', 'rb') as file:
+    with open(f'ppg+dalia/{s}/{s}.pkl', 'rb') as file:
 
-        print(f'saving {session}')
+        print(f'saving {s}')
         data = pickle.load(file, encoding='latin1')
 
-        data_dict[session]['ppg'] = unpack(data['signal']['wrist']['BVP'][::2])     # downsample PPG to match fs_acc
-        data_dict[session]['acc'] = unpack(data['signal']['wrist']['ACC'])
-        data_dict[session]['label'] = unpack(data['label'])        # ground truth EEG
-        data_dict[session]['activity'] = data['activity']
+        data_dict[s]['ppg'] = unpack(data['signal']['wrist']['BVP'][::2])     # downsample PPG to match fs_acc
+        data_dict[s]['acc'] = unpack(data['signal']['wrist']['ACC'])
+        data_dict[s]['label'] = unpack(data['label'])        # ground truth EEG
+        data_dict[s]['activity'] = data['activity']
 
-        # small correction to data - alignment
-        data_dict[session]['ppg'] = data_dict[session]['ppg'][38:, ...]
-        data_dict[session]['acc'] = data_dict[session]['acc'][:-38, ...]
-
-        print(len(data_dict[session]['ppg']))
-        print(len(data_dict[session]['acc']))
-        print(len(data_dict[session]['label']))
-        print(len(data_dict[session]['activity']))
+        # alignment corrections
+        data_dict[s]['ppg'] = data_dict[s]['ppg'][38:, ...]
+        data_dict[s]['acc'] = data_dict[s]['acc'][:-38, ...]
+        data_dict[s]['label'] = data_dict[s]['label'][:-1]
+        data_dict[s]['activity'] = data_dict[s]['activity'][:-1]
 
         # window data
-        data_dict = window_data(data_dict, session)
+        data_dict = window_data(data_dict, s)
 
-        print(data_dict['S1']['ppg'].shape)
-        print(data_dict['S1']['acc'].shape)
-        print(data_dict['S1']['label'].shape)
-        print(data_dict['S1']['activity'].shape)
+        # print(data_dict['S1']['ppg'].shape)
+        # print(data_dict['S1']['acc'].shape)
+        # print(data_dict['S1']['label'].shape)
+        # print(data_dict['S1']['activity'].shape)
 
     return data_dict
 
-def window_data(data_dict, sessions):
+def window_data(data_dict, s):
     '''
     Segment data into windows of 8 seconds with 2 second overlap
-    :param data_dict: dictionary with all signals in arrays
-    :param sessions: list of sessions
-    :return: windowed signals containing X and Y data
+    :param data_dict: dictionary with all signals in arrays for given session
+    :return: dictionary of windowed signals containing X and Y data
         ppg.shape = (window length, n_windows)
         acc.shape = (3, 256, n_windows) - to match Pytorch format
+        labels.shape = (n_windows,)
+        activity.shape = (n_windows,)
     '''
 
+    # sampling rates
     fs = {
-        'ppg': 64,
-        'acc': 32
+        'ppg': 32,                  # fs_ppg = 64 in paper but downsampled to match acc
+        'acc': 32,
+        'activity': 4
     }
 
-    for session in sessions:
-        for k, f in fs.items():
+    n_windows = int(len(data_dict[s]['label']))
 
-            window = 8 * f          # size of window
-            step = 2 * f
+    for k, f in fs.items():
+        # can alternatively use skimage.util.shape.view_as_windows method
 
-            data = data_dict[session][k]
-            len_signal = len(data)
-            n_windows = int((len_signal - window) / step + 1)
+        window = 8*f                        # size of window
+        step = 2*f                          # size of step
+        data = data_dict[s][k]
 
-            if len(data.shape) == 1:
-                # PPG
-                data_dict[session][k] = np.zeros((window, n_windows))
-                for i in range(n_windows):
-                    start = i * step
-                    end = start + window
-                    data_dict[session][k][:, i] = data[start:end]
+        if k == 'ppg':
+            data_dict[s][k] = np.zeros((window, n_windows))
+            for i in range(n_windows):
+                start = i * step
+                end = start + window
+                data_dict[s][k][:, i] = data[start:end]
 
-            else:
-                # accelerometer
-                data_dict[session][k] = np.zeros((data.shape[-1], window, n_windows))
-                for i in range(n_windows):
-                    start = i * step
-                    end = start + window
-                    data_dict[session][k][:, :, i] = data[start:end, :].T
+        if k == 'acc':
+            data_dict[s][k] = np.zeros((data.shape[-1], window, n_windows))
+            for i in range(n_windows):
+                start = i * step
+                end = start + window
+                data_dict[s][k][:, :, i] = data[start:end, :].T
+
+        if k == 'activity':
+            data_dict[s][k] = np.zeros((n_windows,))
+            for i in range(n_windows):
+                start = i * step
+                end = start + window
+                data_dict[s][k][i] = data[start:end][0]             # take first value as value of whole window
 
     return data_dict
 
@@ -92,16 +103,6 @@ def ma_removal(data_dict):
     :param data_dict: dictionary containing all X and y data
     :return:
     '''
-
-    all_data_X = []
-    all_data_y = []
-    all_data_groups = []
-    all_data_activity = []
-
-
-
-
-
 
 
     return
@@ -129,13 +130,14 @@ def main():
         with open(filename, 'rb') as file:
             data_dict = pickle.load(file)
             print(f'Data dictionary loaded from {filename}')
+
             return data_dict
 
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # comment out save or load (to make a typed input switch)
-    save_dict(sessions)
-    # data_dict = load_dict()
+    # save_dict(sessions)
+    data_dict = load_dict()
 
     # pass accelerometer data through CNN
     ma_removal(data_dict)
