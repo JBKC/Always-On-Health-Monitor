@@ -152,7 +152,6 @@ def ma_removal(data_dict, sessions):
 
         # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
-        print(X.shape)
 
         # find indices of activity changes
         idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
@@ -163,7 +162,12 @@ def ma_removal(data_dict, sessions):
 
         for i in tqdm(range(idx.size - 1)):
 
-            X_pres = X[:,:,idx[i] : idx[i+1]]     # splice X into current activity
+            # get into format for model:
+            # (batch_size, channels, height, width) = (batch_size, 1, 4, 256)
+
+            X_pres = X[idx[i] : idx[i+1],:,:]     # splice X into current activity
+
+            X_pres = np.expand_dims(X_pres, axis=1)     # add channel dimension
 
             # initialise CNN model
             model = AdaptiveLinearModel(n_epochs=n_epochs)

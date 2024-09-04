@@ -16,22 +16,25 @@ class AdaptiveLinearModel(nn.Module):
         self.prediction_history = []
 
         # 1st convolutional layer
-        self.conv1 = nn.Conv2d(in_channels=4, out_channels=1,
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=1,
                                kernel_size=(3, 21), padding='same')
         # 2nd convolutional layer
         self.conv2 = nn.Conv2d(in_channels=1, out_channels=1,
                                kernel_size=(3, 1), padding='valid')
 
-    def forward(self, X):
+    def forward(self, input):
         '''
         Define forward pass of model
-        :param X: shape (4,256,n_windows)
+        :param X: shape (n_windows,4,256)
         :return:
         '''
 
-        # define training loop
-        X = torch.from_numpy(X).float()
+        # take only accelerometer data
+        X = input[:, :, 1:, :]
+        print(X.shape)
+
         self.train()
+        X = torch.from_numpy(X).float()
 
         X = self.conv1(X)               # 1st conv layer
         X = self.conv2(X)               # 2nd conv layer
