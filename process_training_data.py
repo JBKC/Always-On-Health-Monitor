@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from accelerometer_cnn import AdaptiveLinearModel
+from torch.utils.data import DataLoader, TensorDataset
+
 
 def save_data(s, data_dict):
     '''
@@ -146,10 +148,12 @@ def ma_removal(data_dict, sessions):
 
     X_dict = {}             # training data
 
-    n_epochs = 500
+    # initialise CNN model
+    n_epochs = 1
+    model = AdaptiveLinearModel(n_epochs=n_epochs)
+    optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
     for s in sessions:
-
         # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
 
@@ -160,23 +164,46 @@ def ma_removal(data_dict, sessions):
         idx = np.insert(idx, 0, 0)
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
-        for i in tqdm(range(idx.size - 1)):
+        # prep data for DataLoader
+        X_list = []
+        y_list = []
+
+        for i in range(idx.size - 1):
 
             # get into format for model:
-            # (batch_size, channels, height, width) = (batch_size, 1, 4, 256)
+            # (batch_size, channels, height, width) = (batch_size, 1, 3, 256)
 
             X_pres = X[idx[i] : idx[i+1],:,:]     # splice X into current activity
-
+            X_pres = torch.from_numpy(X_pres).float()
             X_pres = np.expand_dims(X_pres, axis=1)     # add channel dimension
 
-            # initialise CNN model
-            model = AdaptiveLinearModel(n_epochs=n_epochs)
-            sgd = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
-            model.local_optimizer = sgd
+            # accelerometer data as inputs
+            X_pres = X_pres[:, :, 1:, :]                 # (batch_size, 1, 3, 256)
+            # PPG data as targets
+            y = X_pres[:, :, :1, :]                      # (batch_size, 1, 1, 256)
 
-            # run training on single window
-            model(X_pres)
+            X_list.append(X_pres)
+            y_list.append(y)
 
+        # create DataLoader for batch training
+        dataset = TensorDataset(torch.cat(X_list), torch.cat(y_list))
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+        # training loop
+        for epoch in range(n_epochs):
+            for i, (X_batch, y_batch) in enumerate(tqdm(dataloader)):
+
+                # forward pass
+                outputs = model(X_batch)
+                # compute loss
+                loss = model.adaptive_loss(y_batch, outputs)
+                # backprop
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                print(f'Session {s}, Epoch [{epoch+1}/{n_epochs}], '
+                      f'Batch [{i+1}/{idx.size}], Loss: {loss.item():.4f}')
 
 
 def main():

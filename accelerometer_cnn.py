@@ -22,27 +22,18 @@ class AdaptiveLinearModel(nn.Module):
         self.conv2 = nn.Conv2d(in_channels=1, out_channels=1,
                                kernel_size=(3, 1), padding='valid')
 
-    def forward(self, input):
+    def forward(self, X):
         '''
         Define forward pass of adaptive filter model
-        :param input: shape (n_windows,4,256)
+        :param X: shape (n_windows,3,256)
         :return:
         '''
-
-        # accelerometer data as inputs
-        X = input[:, :, 1:, :]
-        # PPG data as targets
-        y = input[:, :, :1, :]
-
-        X = torch.from_numpy(X).float()
-        y = torch.from_numpy(y).float()
 
         self.train()
 
         X = self.conv1(X)               # 1st conv layer
         # no specified activation function (linear)
         X = self.conv2(X)               # 2nd conv layer
-        # print(X.shape)
 
         return X
 
@@ -51,7 +42,9 @@ class AdaptiveLinearModel(nn.Module):
         # define custom loss function:
         # MSE( FFT(CNN output) , FFT(raw PPG input) ) == MSE ( FFT(y_pred), FFT(y_true) )
 
-        y_true = y_true[:, 0, 0, :]             # match output of conv layers (remove redundant dimensions)
+        # remove redundant dimensions
+        y_true = y_true[:, 0, 0, :]
+        y_pred = y_pred[:, 0, 0, :]
 
         # take FFT
         y_true_fft = torch.fft.fft(y_true)
