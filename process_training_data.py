@@ -137,52 +137,42 @@ def z_normalise(X):
 
 def undo_normalisation(X, ms, stds):
     '''
-    Transform signals back into original space following training
-    :param X: of shape (n_windows, 4, 256)
+    Transform cleaned PPG signal back into original space following filtering
+    :param X: of shape (n_windows, 1, 256)
     :return:
-        normalised X: of shape (n_windows, 4, 256)
+        normalised X: of shape (n_windows, 1, 256)
         ms (means): of shape (n_windows, 4)
         stds (standard deviations) of shape (n_windows, 4)
     '''
 
-    ms = np.zeros((X.shape[0], 4))          # mean of each (window, channel)
-    stds = np.zeros((X.shape[0], 4))        # stdev of each (window, channel)
-
-    # iterate over channels
+    # iterate over channels (only ppg channel now)
     for j in range(X.shape[1]):
         # create term to be updated, X_pres
         X_pres = X[:,j,:]
 
         # iterate over windows
         for i in range(X_pres.shape[0]):
-
-            m = np.mean(X_pres[i,:])
-            std = np.std(X_pres[i,:])
-
-            # Z-normalisation
-            X_pres[i,:] = X_pres[i,:] - m
-            if std != 0:
-                X_pres[i,:] = X_pres[i,:] / std
-
-            # save ms and stds
-            ms[i, j] = m
-            stds[i, j] = std
+            # reverse normalisation
+            if stds[i,j] != 0:
+                X_pres[i, :] = X_pres[i, :] * stds[i,j]
+            X_pres[i, :] = X_pres[i, :] + ms[i,j]
 
         # fill in X with updated X_pres
         X[:,j,:] = X_pres
+        print(X.shape)
 
-    return X, ms, stds
+    return X
 
 def ma_removal(data_dict, sessions):
     '''
-    Remove motion artifacts from raw PPG data by training on accelerometer_cnn
+    Remove session-specific motion artifacts from raw PPG data by training on accelerometer_cnn
     :param data_dict: dictionary containing ppg, acc, label and activity data for each session
     :param s: list of sessions
     :return:
     '''
 
     # initialise CNN model
-    n_epochs = 5
+    n_epochs = 10
     model = AdaptiveLinearModel(n_epochs=n_epochs)
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
@@ -202,7 +192,7 @@ def ma_removal(data_dict, sessions):
             # (batch_size, channels, height, width) = (batch_size, 1, 3, 256)
             X_pres = X[idx[i] : idx[i+1],:,:]           # splice X into current activity
 
-            # channel-wise Z-normalisation
+            # batch Z-normalisation
             X_pres, ms, stds = z_normalise(X_pres)
 
             X_pres = np.expand_dims(X_pres, axis=1)     # add channel dimension
@@ -224,8 +214,8 @@ def ma_removal(data_dict, sessions):
                 loss.backward()
                 optimizer.step()
 
-                print(f'Session {s}, Epoch [{epoch+1}/{n_epochs}]'
-                      f', Loss: {loss.item():.4f}')
+                print(f'Session {s}, Batch: [{i+1}/{idx.size-1}],'
+                      f'Epoch [{epoch+1}/{n_epochs}], Loss: {loss.item():.4f}')
 
             # subtract the motion artifact estimate to extract cleaned BVP
             x_out = y_true.numpy() - y_pred.detach().numpy()
@@ -233,12 +223,8 @@ def ma_removal(data_dict, sessions):
             # denormalise - get PPG signal into original shape: (n_windows, 1, 256)
             x_out = x_out[:, 0, :, :]
 
-            print(x_out.shape)
             x_out = undo_normalisation(x_out, ms, stds)
-
-
-
-
+            print(x_out.shape)
 
 
     return x_out
