@@ -150,8 +150,9 @@ def ma_removal(data_dict, sessions):
 
     for s in sessions:
 
-        # concatenate ppg + accelerometer signal data
-        X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=0)
+        # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
+        X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
+        print(X.shape)
 
         # find indices of activity changes
         idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
