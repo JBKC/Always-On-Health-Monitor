@@ -31,6 +31,8 @@ class AdaptiveLinearModel(nn.Module):
 
         self.train()
 
+        # print(X.shape)
+
         X = self.conv1(X)               # 1st conv layer
         # no specified activation function (linear)
         X = self.conv2(X)               # 2nd conv layer

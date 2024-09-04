@@ -99,18 +99,18 @@ def window_data(data_dict, s):
 
     return data_dict
 
-def normalise(X):
+def z_normalise(X):
     '''
     Z-normalises data for all windows, across each channel
-    :param X: of shape (4, 256, n_windows)
+    :param X: of shape (n_windows, 4, 256)
     :return:
-        normalised X: of shape (4, 256, n_windows)
-        ms (means): of shape (4, n_windows)
-        stds (standard deviations) of shape (4, n_windows)
+        normalised X: of shape (n_windows, 4, 256)
+        ms (means): of shape (n_windows, 4)
+        stds (standard deviations) of shape (n_windows, 4)
     '''
 
-    ms = np.zeros((4, X.shape[-1]))          # mean of each (channel, window)
-    stds = np.zeros((4, X.shape[-1]))        # stdev of each (channel, window)
+    ms = np.zeros((4, X.shape[0]))          # mean of each (channel, window)
+    stds = np.zeros((4, X.shape[0]))        # stdev of each (channel, window)
 
     # iterate over channels
     for i in range(X.shape[0]):
@@ -140,7 +140,7 @@ def normalise(X):
 
 def ma_removal(data_dict, sessions):
     '''
-    Remove motion artifacts from raw PPG data by running through accelerometer_cnn
+    Remove motion artifacts from raw PPG data by training on accelerometer_cnn
     :param data_dict: dictionary containing ppg, acc, label and activity data for each session
     :param s: list of sessions
     :return:
@@ -149,7 +149,7 @@ def ma_removal(data_dict, sessions):
     X_dict = {}             # training data
 
     # initialise CNN model
-    n_epochs = 1
+    n_epochs = 5
     model = AdaptiveLinearModel(n_epochs=n_epochs)
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
@@ -157,53 +157,52 @@ def ma_removal(data_dict, sessions):
         # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
 
-        # find indices of activity changes
+        # find indices of activity changes (marks batches)
         idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
 
         # add indices of start and end points
         idx = np.insert(idx, 0, 0)
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
-        # prep data for DataLoader
-        X_list = []
-        y_list = []
-
+        # create batches
         for i in range(idx.size - 1):
-
-            # get into format for model:
             # (batch_size, channels, height, width) = (batch_size, 1, 3, 256)
+            X_pres = X[idx[i] : idx[i+1],:,:]           # splice X into current activity
 
-            X_pres = X[idx[i] : idx[i+1],:,:]     # splice X into current activity
-            X_pres = torch.from_numpy(X_pres).float()
+            # channel-wise Z-normalisation
+            X_pres, ms, stds = z_normalise(X_pres)
+
             X_pres = np.expand_dims(X_pres, axis=1)     # add channel dimension
+            X_pres = torch.from_numpy(X_pres).float()
 
-            # accelerometer data as inputs
+            # accelerometer data are inputs
             X_pres = X_pres[:, :, 1:, :]                 # (batch_size, 1, 3, 256)
-            # PPG data as targets
-            y = X_pres[:, :, :1, :]                      # (batch_size, 1, 1, 256)
+            # PPG data are targets
+            y_true = X_pres[:, :, :1, :]                  # (batch_size, 1, 1, 256)
 
-            X_list.append(X_pres)
-            y_list.append(y)
-
-        # create DataLoader for batch training
-        dataset = TensorDataset(torch.cat(X_list), torch.cat(y_list))
-        dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-
-        # training loop
-        for epoch in range(n_epochs):
-            for i, (X_batch, y_batch) in enumerate(tqdm(dataloader)):
-
+            # training loop
+            for epoch in range(n_epochs):
                 # forward pass
-                outputs = model(X_batch)
+                y_pred = model(X_pres)
                 # compute loss
-                loss = model.adaptive_loss(y_batch, outputs)
+                loss = model.adaptive_loss(y_true, y_pred)
                 # backprop
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-                print(f'Session {s}, Epoch [{epoch+1}/{n_epochs}], '
-                      f'Batch [{i+1}/{idx.size}], Loss: {loss.item():.4f}')
+                print(f'Session {s}, Epoch [{epoch+1}/{n_epochs}]'
+                      f', Loss: {loss.item():.4f}')
+
+                # subtract the motion artifact estimate to extract cleaned BVP
+                x_out = y_true.numpy() - y_pred.detach().numpy()
+
+                #
+                x_out = x_out[:, 0, 0, :]           # shape (n_windows, 256)
+
+
+
+    return x_out
 
 
 def main():
