@@ -19,35 +19,30 @@ def save_data(s, data_dict):
     :return:
     '''
 
-    def unpack(data):
-        # data = data.reshape(-1, 1)
-        data = np.squeeze(data)
-        return data
-
     # pull raw data
     with open(f'ppg+dalia/{s}/{s}.pkl', 'rb') as file:
 
         print(f'saving {s}')
         data = pickle.load(file, encoding='latin1')
 
-        data_dict[s]['ppg'] = unpack(data['signal']['wrist']['BVP'][::2])     # downsample PPG to match fs_acc
-        data_dict[s]['acc'] = unpack(data['signal']['wrist']['ACC'])
-        data_dict[s]['label'] = unpack(data['label'])        # ground truth EEG
+        data_dict[s]['ppg'] = data['signal']['wrist']['BVP'][::2]     # downsample PPG to match fs_acc
+        data_dict[s]['acc'] = data['signal']['wrist']['ACC']
+        data_dict[s]['label'] = (data['label'])                       # ground truth EEG
         data_dict[s]['activity'] = data['activity']
 
         # alignment corrections
-        data_dict[s]['ppg'] = data_dict[s]['ppg'][38:, ...]
-        data_dict[s]['acc'] = data_dict[s]['acc'][:-38, ...]
-        data_dict[s]['label'] = data_dict[s]['label'][:-1]
-        data_dict[s]['activity'] = data_dict[s]['activity'][:-1]
+        data_dict[s]['ppg'] = data_dict[s]['ppg'][38:,:].T              # (1, n_samples)
+        data_dict[s]['acc'] = data_dict[s]['acc'][:-38,:].T             # (3, n_samples)
+        data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
+        data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
 
         # window data
         data_dict = window_data(data_dict, s)
 
-        # print(data_dict['S1']['ppg'].shape)
-        # print(data_dict['S1']['acc'].shape)
-        # print(data_dict['S1']['label'].shape)
-        # print(data_dict['S1']['activity'].shape)
+        # print(data_dict[s]['ppg'].shape)
+        # print(data_dict[s]['acc'].shape)
+        # print(data_dict[s]['label'].shape)
+        # print(data_dict[s]['activity'].shape)
 
     return data_dict
 
@@ -56,8 +51,8 @@ def window_data(data_dict, s):
     Segment data into windows of 8 seconds with 2 second overlap
     :param data_dict: dictionary with all signals in arrays for given session
     :return: dictionary of windowed signals containing X and Y data
-        ppg.shape = (1, 256, n_windows)
-        acc.shape = (3, 256, n_windows) - to match Pytorch format
+        ppg.shape = (n_windows, 1, 256)
+        acc.shape = (n_windows, 3, 256)
         labels.shape = (n_windows,)
         activity.shape = (n_windows,)
     '''
@@ -79,26 +74,26 @@ def window_data(data_dict, s):
         data = data_dict[s][k]
 
         if k == 'ppg':
-            data_dict[s][k] = np.zeros((1, window, n_windows))
+            # (1, n_samples) -> (n_windows, 1, 256)
+            data_dict[s][k] = np.zeros((n_windows, 1, window))
             for i in range(n_windows):
                 start = i * step
                 end = start + window
-                # add extra dimension to match acc data shape
-                data_dict[s][k][0, :, i] = data[start:end]
+                data_dict[s][k][i, :, :] = data[:, start:end]
 
         if k == 'acc':
-            data_dict[s][k] = np.zeros((data.shape[-1], window, n_windows))
+            data_dict[s][k] = np.zeros((n_windows, 3, window))
             for i in range(n_windows):
                 start = i * step
                 end = start + window
-                data_dict[s][k][:, :, i] = data[start:end, :].T
+                data_dict[s][k][i, :, :] = data[:, start:end]
 
         if k == 'activity':
             data_dict[s][k] = np.zeros((n_windows,))
             for i in range(n_windows):
                 start = i * step
                 end = start + window
-                data_dict[s][k][i] = data[start:end][0]             # take first value as value of whole window
+                data_dict[s][k][i] = data[0, start:end][0]             # take first value as value of whole window
 
     return data_dict
 

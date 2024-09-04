@@ -35,6 +35,7 @@ class AdaptiveLinearModel(nn.Module):
 
         X = self.conv1(X)               # 1st conv layer
         X = self.conv2(X)               # 2nd conv layer
+        print(X.shape)
 
         return X
 
