@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from accelerometer_cnn import AdaptiveLinearModel
 
 def save_data(s, data_dict):
@@ -150,11 +151,12 @@ def ma_removal(data_dict, sessions):
 
     X_dict = {}             # training data
 
+    n_epochs = 500
+
     for s in sessions:
 
         # concatenate ppg + accelerometer signal data
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=0)
-        # X.shape = (4, n_samples, n_windows)
 
         # find indices of activity changes
         idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
@@ -164,14 +166,18 @@ def ma_removal(data_dict, sessions):
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
         for i in tqdm(range(idx.size - 1)):
-            # splice X into current activity
-            X_pres = X[:,:,idx[i] : idx[i+1]]
-            # print(X_pres.shape)
+
+            X_pres = X[:,:,idx[i] : idx[i+1]]     # splice X into current activity
+
+            # initialise CNN model
+            model = AdaptiveLinearModel(n_epochs=n_epochs)
+            sgd = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
+            model.local_optimizer = sgd
+
+            # run training on single window
+            model(X_pres)
 
 
-
-
-    return
 
 def main():
 
