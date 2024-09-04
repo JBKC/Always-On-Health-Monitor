@@ -105,36 +105,71 @@ def z_normalise(X):
     :param X: of shape (n_windows, 4, 256)
     :return:
         normalised X: of shape (n_windows, 4, 256)
-        ms (means): of shape (n_windows, 4)
-        stds (standard deviations) of shape (n_windows, 4)
     '''
 
-    ms = np.zeros((4, X.shape[0]))          # mean of each (channel, window)
-    stds = np.zeros((4, X.shape[0]))        # stdev of each (channel, window)
+    ms = np.zeros((X.shape[0], 4))          # mean of each (window, channel)
+    stds = np.zeros((X.shape[0], 4))        # stdev of each (window, channel)
 
     # iterate over channels
-    for i in range(X.shape[0]):
+    for j in range(X.shape[1]):
         # create term to be updated, X_pres
-        X_pres = X[i,:,:]
+        X_pres = X[:,j,:]
 
         # iterate over windows
-        for j in range(X_pres.shape[-1]):
+        for i in range(X_pres.shape[0]):
 
-            m = np.mean(X_pres[:,j])
-            std = np.std(X_pres[:,j])
+            m = np.mean(X_pres[i,:])
+            std = np.std(X_pres[i,:])
 
             # Z-normalisation
-            X_pres[:,j] = X_pres[:,j] - m
-
+            X_pres[i,:] = X_pres[i,:] - m
             if std != 0:
-                X_pres[:,j] = X_pres[:,j] / std
+                X_pres[i,:] = X_pres[i,:] / std
 
             # save ms and stds
             ms[i, j] = m
             stds[i, j] = std
 
         # fill in X with updated X_pres
-        X[i,:,:] = X_pres
+        X[:,j,:] = X_pres
+
+    return X, ms, stds
+
+def undo_normalisation(X, ms, stds):
+    '''
+    Transform signals back into original space following training
+    :param X: of shape (n_windows, 4, 256)
+    :return:
+        normalised X: of shape (n_windows, 4, 256)
+        ms (means): of shape (n_windows, 4)
+        stds (standard deviations) of shape (n_windows, 4)
+    '''
+
+    ms = np.zeros((X.shape[0], 4))          # mean of each (window, channel)
+    stds = np.zeros((X.shape[0], 4))        # stdev of each (window, channel)
+
+    # iterate over channels
+    for j in range(X.shape[1]):
+        # create term to be updated, X_pres
+        X_pres = X[:,j,:]
+
+        # iterate over windows
+        for i in range(X_pres.shape[0]):
+
+            m = np.mean(X_pres[i,:])
+            std = np.std(X_pres[i,:])
+
+            # Z-normalisation
+            X_pres[i,:] = X_pres[i,:] - m
+            if std != 0:
+                X_pres[i,:] = X_pres[i,:] / std
+
+            # save ms and stds
+            ms[i, j] = m
+            stds[i, j] = std
+
+        # fill in X with updated X_pres
+        X[:,j,:] = X_pres
 
     return X, ms, stds
 
@@ -145,8 +180,6 @@ def ma_removal(data_dict, sessions):
     :param s: list of sessions
     :return:
     '''
-
-    X_dict = {}             # training data
 
     # initialise CNN model
     n_epochs = 5
@@ -194,11 +227,17 @@ def ma_removal(data_dict, sessions):
                 print(f'Session {s}, Epoch [{epoch+1}/{n_epochs}]'
                       f', Loss: {loss.item():.4f}')
 
-                # subtract the motion artifact estimate to extract cleaned BVP
-                x_out = y_true.numpy() - y_pred.detach().numpy()
+            # subtract the motion artifact estimate to extract cleaned BVP
+            x_out = y_true.numpy() - y_pred.detach().numpy()
 
-                #
-                x_out = x_out[:, 0, 0, :]           # shape (n_windows, 256)
+            # denormalise - get PPG signal into original shape: (n_windows, 1, 256)
+            x_out = x_out[:, 0, :, :]
+
+            print(x_out.shape)
+            x_out = undo_normalisation(x_out, ms, stds)
+
+
+
 
 
 
