@@ -1,6 +1,6 @@
 '''
-Adaptive linear model
-Takes in accelerometer data as input into a CNN
+Adaptive linear filter
+Takes in accelerometer data as input into a CNN, where the adaptive linear filter is the loss function
 Input shape = (3,256,1)
 '''
 
@@ -24,29 +24,34 @@ class AdaptiveLinearModel(nn.Module):
 
     def forward(self, input):
         '''
-        Define forward pass of model
-        :param X: shape (n_windows,4,256)
+        Define forward pass of adaptive filter model
+        :param input: shape (n_windows,4,256)
         :return:
         '''
 
-        # take only accelerometer data
+        # accelerometer data as inputs
         X = input[:, :, 1:, :]
-        print(X.shape)
+        # PPG data as targets
+        y = input[:, :, :1, :]
+
+        X = torch.from_numpy(X).float()
+        y = torch.from_numpy(y).float()
 
         self.train()
-        X = torch.from_numpy(X).float()
 
         X = self.conv1(X)               # 1st conv layer
+        # no specified activation function (linear)
         X = self.conv2(X)               # 2nd conv layer
-        print(X.shape)
+        # print(X.shape)
 
         return X
 
 
     def adaptive_loss(self, y_true, y_pred):
-        # define custom loss function: MSE( FFT(CNN output) , FFT(raw PPG input) ) = MSE ( FFT(y_pred), FFT(y_true) )
+        # define custom loss function:
+        # MSE( FFT(CNN output) , FFT(raw PPG input) ) == MSE ( FFT(y_pred), FFT(y_true) )
 
-        y_true = y_true[:, 0, :, 0]             # match output of conv layers
+        y_true = y_true[:, 0, 0, :]             # match output of conv layers (remove redundant dimensions)
 
         # take FFT
         y_true_fft = torch.fft.fft(y_true)
@@ -59,11 +64,4 @@ class AdaptiveLinearModel(nn.Module):
 
         return torch.mean(e)
 
-    def grad(self, inputs, targets):
-        # compute gradients
-
-        self.local_optimizer.zero_grad()                        # reset all gradients to zero with each backpass
-        loss_value = self.adaptive_loss(inputs, targets)        # calculate loss
-        loss_value.backward()                                   # backprop
-        return loss_value
 
