@@ -171,11 +171,6 @@ def ma_removal(data_dict, sessions):
     :return:
     '''
 
-    def reset_weights(m):
-        # reset model weights
-        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-            m.reset_parameters()
-
     X_BVP = []          # filtered PPG data
 
     # initialise CNN model

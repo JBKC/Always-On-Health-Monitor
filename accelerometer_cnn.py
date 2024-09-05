@@ -67,19 +67,21 @@ class AdaptiveLinearModel(nn.Module):
             loss.backward()
             optimizer.step()
 
+            # subtract the motion artifact estimate to extract cleaned BVP
+            x_out = y_true[:, 0, 0, :] - y_pred
+
             if epoch % 10 == 0:
                 print(f'Session {session}, Batch: {batch+1}, '
                       f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
-        # After training, compute the final output
-        with torch.no_grad():
-            y_pred = self(x)
 
-        # subtract the motion artifact estimate to extract cleaned BVP
-        x_out = y_true.cpu().numpy() - y_pred.cpu().numpy()
+        self.eval()
+
+        x_out = y_true[:, 0, 0, :] - y_pred
 
         # get signal into original shape: (n_windows, 1, 256)
         x_out = x_out[:, 0, :, :]
+        print(x_out.shape)
 
         # Reset the weights
         self.reinitialize_weights()
