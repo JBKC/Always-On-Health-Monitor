@@ -9,11 +9,10 @@ import torch
 import torch.nn as nn
 
 class AdaptiveLinearModel(nn.Module):
-    def __init__(self, n_epochs):
+    def __init__(self):
         super().__init__()
 
-        self.n_epochs = n_epochs
-        self.prediction_history = []
+        self.initial_state = self.state_dict()          # initial weights of model
 
         # 1st convolutional layer
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=1,
@@ -36,6 +35,9 @@ class AdaptiveLinearModel(nn.Module):
         X = self.conv2(X)              # 2nd conv layer
 
         return X
+
+    def reinitialize_weights(self):
+        self.load_state_dict(self.initial_state)
 
     def train_batch(self, X, session, batch, n_epochs, optimizer):
         '''
@@ -78,6 +80,12 @@ class AdaptiveLinearModel(nn.Module):
 
         # subtract the motion artifact estimate to extract cleaned BVP
         x_out = y_true.cpu().numpy() - y_pred.cpu().numpy()
+
+        # get signal into original shape: (n_windows, 1, 256)
+        x_out = x_out[:, 0, :, :]
+
+        # Reset the weights
+        self.reinitialize_weights()
 
         return x_out
 

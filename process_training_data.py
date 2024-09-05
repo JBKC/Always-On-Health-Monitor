@@ -162,6 +162,7 @@ def undo_normalisation(X, ms, stds):
 
     return X
 
+
 def ma_removal(data_dict, sessions):
     '''
     Remove session-specific motion artifacts from raw PPG data by training on accelerometer_cnn
@@ -169,6 +170,11 @@ def ma_removal(data_dict, sessions):
     :param s: list of sessions
     :return:
     '''
+
+    def reset_weights(m):
+        # reset model weights
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+            m.reset_parameters()
 
     X_BVP = []          # filtered PPG data
 
@@ -202,8 +208,7 @@ def ma_removal(data_dict, sessions):
             # run training loop
             x_out = model.train_batch(X=X_pres, session=s, batch=i, n_epochs=n_epochs, optimizer=optimizer)
 
-            # denormalise - get signal into original shape: (n_windows, 1, 256)
-            x_out = x_out[:, 0, :, :]
+            # denormalise
             x_out = undo_normalisation(x_out, ms, stds)
 
             # append filtered batch
