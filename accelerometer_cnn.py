@@ -25,19 +25,61 @@ class AdaptiveLinearModel(nn.Module):
     def forward(self, X):
         '''
         Define forward pass of adaptive filter model
-        :param X: shape (n_windows,3,256)
+        :param X: shape (batch_size, n_windows,4,256)
         :return:
         '''
 
         self.train()
 
-        # print(X.shape)
-
-        X = self.conv1(X)               # 1st conv layer
+        X = self.conv1(X)                   # 1st conv layer
         # no specified activation function (linear)
-        X = self.conv2(X)               # 2nd conv layer
+        X = self.conv2(X)              # 2nd conv layer
 
         return X
+
+    def train_batch(self, X, session, batch, n_epochs, optimizer):
+        '''
+        Perform training for one batch
+        :param X: shape (batch_size, 4, 256) - combined accelerometer and PPG data
+        :param optimizer: PyTorch optimizer
+        :param n_epochs: number of epochs to train
+        :return: filtered PPG data
+        '''
+        self.train()
+
+        print(X.shape)
+
+        # accelerometer data are inputs
+        x = X[:, :, 1:, :]  # (batch_size, 1, 3, 256)
+        # PPG data are targets
+        y_true = X[:, :, :1, :]  # (batch_size, 1, 1, 256)
+
+        print(x.shape)
+        print(y_true.shape)
+
+        for epoch in range(n_epochs):
+            optimizer.zero_grad()
+
+            # forward pass
+            y_pred = self(x)  # Forward pass
+            # calculate loss
+            loss = self.adaptive_loss(y_true, y_pred)
+            # backpass
+            loss.backward()
+            optimizer.step()
+
+            if epoch % 10 == 0:
+                print(f'Session {session}, Batch: {batch+1}, '
+                      f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
+
+        # After training, compute the final output
+        with torch.no_grad():
+            y_pred = self(x)
+
+        # subtract the motion artifact estimate to extract cleaned BVP
+        x_out = y_true.cpu().numpy() - y_pred.cpu().numpy()
+
+        return x_out
 
 
     def adaptive_loss(self, y_true, y_pred):

@@ -159,7 +159,6 @@ def undo_normalisation(X, ms, stds):
 
         # fill in X with updated X_pres
         X[:,j,:] = X_pres
-        print(X.shape)
 
     return X
 
@@ -171,12 +170,14 @@ def ma_removal(data_dict, sessions):
     :return:
     '''
 
+    X_BVP = []          # filtered PPG data
+
     # initialise CNN model
-    n_epochs = 10
+    n_epochs = 100
     model = AdaptiveLinearModel(n_epochs=n_epochs)
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
-    for s in sessions:
+    for s in sessions[:1]:
         # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
 
@@ -198,36 +199,31 @@ def ma_removal(data_dict, sessions):
             X_pres = np.expand_dims(X_pres, axis=1)     # add channel dimension
             X_pres = torch.from_numpy(X_pres).float()
 
-            # accelerometer data are inputs
-            X_pres = X_pres[:, :, 1:, :]                 # (batch_size, 1, 3, 256)
-            # PPG data are targets
-            y_true = X_pres[:, :, :1, :]                  # (batch_size, 1, 1, 256)
+            # run training loop
+            x_out = model.train_batch(X=X_pres, session=s, batch=i, n_epochs=n_epochs, optimizer=optimizer)
 
-            # training loop
-            for epoch in range(n_epochs):
-                # forward pass
-                y_pred = model(X_pres)
-                # compute loss
-                loss = model.adaptive_loss(y_true, y_pred)
-                # backprop
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                print(f'Session {s}, Batch: [{i+1}/{idx.size-1}],'
-                      f'Epoch [{epoch+1}/{n_epochs}], Loss: {loss.item():.4f}')
-
-            # subtract the motion artifact estimate to extract cleaned BVP
-            x_out = y_true.numpy() - y_pred.detach().numpy()
-
-            # denormalise - get PPG signal into original shape: (n_windows, 1, 256)
+            # denormalise - get signal into original shape: (n_windows, 1, 256)
             x_out = x_out[:, 0, :, :]
-
             x_out = undo_normalisation(x_out, ms, stds)
-            print(x_out.shape)
+
+            # append filtered batch
+            X_BVP.append(x_out)
+
+        X_BVP = np.concatenate(X_BVP, axis=0)
+
+        X_BVP = X_BVP.flatten()
+        X_PPG = data_dict[s]['ppg'].flatten()
+
+        # unravel & test plot
+        print(X_BVP.shape)
+        print(X_PPG.shape)
+
+        plt.plot(X_PPG)
+        plt.plot(X_BVP)
+        plt.show()
 
 
-    return x_out
+    return X_BVP
 
 
 def main():
