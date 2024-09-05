@@ -179,10 +179,11 @@ def ma_removal(data_dict, sessions):
     X_BVP = []          # filtered PPG data
 
     # initialise CNN model
-    n_epochs = 100
+    n_epochs = 16000
     model = AdaptiveLinearModel(n_epochs=n_epochs)
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
+    # for s in sessions:
     for s in sessions[:1]:
         # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
@@ -195,7 +196,8 @@ def ma_removal(data_dict, sessions):
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
         # create batches
-        for i in range(idx.size - 1):
+        # for i in range(idx.size - 1):
+        for i in range(1):
             # (batch_size, channels, height, width) = (batch_size, 1, 3, 256)
             X_pres = X[idx[i] : idx[i+1],:,:]           # splice X into current activity
 

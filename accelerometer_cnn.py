@@ -9,10 +9,10 @@ import torch
 import torch.nn as nn
 
 class AdaptiveLinearModel(nn.Module):
-    def __init__(self):
+    def __init__(self, n_epochs):
         super().__init__()
 
-        self.initial_state = self.state_dict()          # initial weights of model
+        self.n_epochs = n_epochs
 
         # 1st convolutional layer
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=1,
@@ -20,6 +20,8 @@ class AdaptiveLinearModel(nn.Module):
         # 2nd convolutional layer
         self.conv2 = nn.Conv2d(in_channels=1, out_channels=1,
                                kernel_size=(3, 1), padding='valid')
+
+        self.initial_state = self.state_dict()          # initial weights of model
 
     def forward(self, X):
         '''
@@ -49,15 +51,10 @@ class AdaptiveLinearModel(nn.Module):
         '''
         self.train()
 
-        print(X.shape)
-
         # accelerometer data are inputs
         x = X[:, :, 1:, :]  # (batch_size, 1, 3, 256)
         # PPG data are targets
         y_true = X[:, :, :1, :]  # (batch_size, 1, 1, 256)
-
-        print(x.shape)
-        print(y_true.shape)
 
         for epoch in range(n_epochs):
             optimizer.zero_grad()
