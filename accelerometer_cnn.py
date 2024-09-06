@@ -38,57 +38,6 @@ class AdaptiveLinearModel(nn.Module):
 
         return X
 
-    def reinitialize_weights(self):
-        self.load_state_dict(self.initial_state)
-
-    def train_batch(self, X, session, batch, n_epochs, optimizer):
-        '''
-        Perform training for one batch
-        :param X: shape (batch_size, 4, 256) - combined accelerometer and PPG data
-        :param optimizer: PyTorch optimizer
-        :param n_epochs: number of epochs to train
-        :return: filtered PPG data
-        '''
-        self.train()
-
-        # accelerometer data are inputs
-        x = X[:, :, 1:, :]  # (batch_size, 1, 3, 256)
-        # PPG data are targets
-        y_true = X[:, :, :1, :]  # (batch_size, 1, 1, 256)
-
-        for epoch in range(n_epochs):
-            optimizer.zero_grad()
-
-            # forward pass
-            y_pred = self(x)  # Forward pass
-            # calculate loss
-            loss = self.adaptive_loss(y_true, y_pred)
-            # backpass
-            loss.backward()
-            optimizer.step()
-
-            # subtract the motion artifact estimate to extract cleaned BVP
-            x_out = y_true[:, 0, 0, :] - y_pred
-
-            if epoch % 10 == 0:
-                print(f'Session {session}, Batch: {batch+1}, '
-                      f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
-
-
-        self.eval()
-
-        x_out = y_true[:, 0, 0, :] - y_pred
-
-        # get signal into original shape: (n_windows, 1, 256)
-        x_out = x_out[:, 0, :, :]
-        print(x_out.shape)
-
-        # Reset the weights
-        self.reinitialize_weights()
-
-        return x_out
-
-
     def adaptive_loss(self, y_true, y_pred):
         # define custom loss function:
         # MSE( FFT(CNN output) , FFT(raw PPG input) ) == MSE ( FFT(y_pred), FFT(y_true) )

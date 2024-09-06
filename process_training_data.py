@@ -194,18 +194,38 @@ def ma_removal(data_dict, sessions):
         # for i in range(idx.size - 1):
         for i in range(1):
             # (batch_size, channels, height, width) = (batch_size, 1, 3, 256)
-            X_pres = X[idx[i] : idx[i+1],:,:]           # splice X into current activity
+            X_pres = X[idx[i]: idx[i + 1], :, :]  # splice X into current activity
 
             # batch Z-normalisation
             X_pres, ms, stds = z_normalise(X_pres)
 
-            X_pres = np.expand_dims(X_pres, axis=1)     # add channel dimension
+            X_pres = np.expand_dims(X_pres, axis=1)  # add channel dimension
             X_pres = torch.from_numpy(X_pres).float()
 
-            # run training loop
-            x_out = model.train_batch(X=X_pres, session=s, batch=i, n_epochs=n_epochs, optimizer=optimizer)
+            # accelerometer data are inputs
+            X_pres = X_pres[:, :, 1:, :]  # (batch_size, 1, 3, 256)
+            # PPG data are targets
+            y_true = X_pres[:, :, :1, :]  # (batch_size, 1, 1, 256)
 
-            # denormalise
+            # training loop
+            for epoch in range(n_epochs):
+                # forward pass
+                y_pred = model(X_pres)
+                # compute loss
+                loss = model.adaptive_loss(y_true, y_pred)
+                # backprop
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                print(f'Session {s}, Batch: [{i + 1}/{idx.size - 1}],'
+                      f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
+
+            # subtract the motion artifact estimate to extract cleaned BVP
+            x_out = y_true.numpy() - y_pred.detach().numpy()
+
+            # denormalise - get signal into original shape: (n_windows, 1, 256)
+            x_out = x_out[:, 0, :, :]
             x_out = undo_normalisation(x_out, ms, stds)
 
             # append filtered batch
