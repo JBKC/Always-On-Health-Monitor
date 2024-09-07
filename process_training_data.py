@@ -174,7 +174,7 @@ def ma_removal(data_dict, sessions):
     X_BVP = []          # filtered PPG data
 
     # initialise CNN model
-    n_epochs = 16000
+    n_epochs = 1000
     model = AdaptiveLinearModel(n_epochs=n_epochs)
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
@@ -190,29 +190,32 @@ def ma_removal(data_dict, sessions):
         idx = np.insert(idx, 0, 0)
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
-        # create batches
+        # prep data for model: (batch_size, channels, height, width) = (batch_size, 4, 3, 256)
+
         # for i in range(idx.size - 1):
         for i in range(1):
-            # (batch_size, channels, height, width) = (batch_size, 1, 3, 256)
-            X_pres = X[idx[i]: idx[i + 1], :, :]  # splice X into current activity
+
+            # create batches
+            X_batch = X[idx[i]: idx[i + 1], :, :]  # splice X into current activity
 
             # batch Z-normalisation
-            X_pres, ms, stds = z_normalise(X_pres)
+            X_batch, ms, stds = z_normalise(X_batch)
 
-            X_pres = np.expand_dims(X_pres, axis=1)  # add channel dimension
-            X_pres = torch.from_numpy(X_pres).float()
+            X_batch = np.expand_dims(X_batch, axis=1)          # add channel dimension
+            X_batch = torch.from_numpy(X_batch).float()
 
-            # accelerometer data are inputs
-            X_pres = X_pres[:, :, 1:, :]  # (batch_size, 1, 3, 256)
-            # PPG data are targets
-            y_true = X_pres[:, :, :1, :]  # (batch_size, 1, 1, 256)
+            # accelerometer data are inputs:
+            x = X_batch[:, :, 1:, :]                      # (batch_size, 1, 3, 256)
+            # PPG data are targets:
+            y_true = X_batch[:, :, :1, :]                 # (batch_size, 1, 1, 256)
 
             # training loop
             for epoch in range(n_epochs):
-                # forward pass
-                y_pred = model(X_pres)
-                # compute loss
-                loss = model.adaptive_loss(y_true, y_pred)
+
+                # forward pass through CNN to get x_out (motion artifact estimate)
+                x_out = model(x)
+                # compute loss against raw PPG data
+                loss = model.adaptive_loss(y_true=y_true, y_pred=x_out)
                 # backprop
                 optimizer.zero_grad()
                 loss.backward()
@@ -222,10 +225,12 @@ def ma_removal(data_dict, sessions):
                       f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
             # subtract the motion artifact estimate to extract cleaned BVP
-            x_out = y_true.numpy() - y_pred.detach().numpy()
+            with torch.no_grad():
+                x_out = y_true[:, 0, 0, :] - model(x)
 
-            # denormalise - get signal into original shape: (n_windows, 1, 256)
-            x_out = x_out[:, 0, :, :]
+            # get signal into original shape: (n_windows, 1, 256)
+            x_out = torch.unsqueeze(x_out, dim=1).numpy()
+            # denormalise
             x_out = undo_normalisation(x_out, ms, stds)
 
             # append filtered batch
@@ -233,13 +238,9 @@ def ma_removal(data_dict, sessions):
 
         X_BVP = np.concatenate(X_BVP, axis=0)
 
+        # unravel & test plot
         X_BVP = X_BVP.flatten()
         X_PPG = data_dict[s]['ppg'].flatten()
-
-        # unravel & test plot
-        print(X_BVP.shape)
-        print(X_PPG.shape)
-
         plt.plot(X_PPG)
         plt.plot(X_BVP)
         plt.show()

@@ -36,15 +36,20 @@ class AdaptiveLinearModel(nn.Module):
         # no specified activation function (linear)
         X = self.conv2(X)              # 2nd conv layer
 
-        return X
+        # remove redundant dimensions
+        return X[:, 0, 0, :]
 
     def adaptive_loss(self, y_true, y_pred):
-        # define custom loss function:
-        # MSE( FFT(CNN output) , FFT(raw PPG input) ) == MSE ( FFT(y_pred), FFT(y_true) )
+        '''
+        Apply adaptive filter
+        custom loss function: MSE( FFT(CNN output) , FFT(raw PPG signal) )
+        :param y_true: raw PPG signal
+        :param y_pred: predicted motion artifacts from CNN
+        :return: mean squared error between y_true and y_pred
+        '''
 
         # remove redundant dimensions
         y_true = y_true[:, 0, 0, :]
-        y_pred = y_pred[:, 0, 0, :]
 
         # take FFT
         y_true_fft = torch.fft.fft(y_true)
@@ -52,9 +57,10 @@ class AdaptiveLinearModel(nn.Module):
 
         # calculate error (raw ppg - motion artifact estimate)
         e = torch.abs(y_true_fft - y_pred_fft)
-        # MSE
+        # single MSE for each batch
         e = torch.sum(e ** 2, dim=-1)
 
+        # single MSE value across all batches
         return torch.mean(e)
 
 
