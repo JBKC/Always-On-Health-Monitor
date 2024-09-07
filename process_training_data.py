@@ -32,6 +32,8 @@ def save_data(s, data_dict):
         data_dict[s]['label'] = (data['label'])                       # ground truth EEG
         data_dict[s]['activity'] = data['activity']
 
+        print(len(data_dict[s]['ppg']))
+
         # alignment corrections
         data_dict[s]['ppg'] = data_dict[s]['ppg'][38:,:].T              # (1, n_samples)
         data_dict[s]['acc'] = data_dict[s]['acc'][:-38,:].T             # (3, n_samples)
@@ -99,6 +101,7 @@ def window_data(data_dict, s):
 
     return data_dict
 
+
 def z_normalise(X):
     '''
     Z-normalises data for all windows, across each channel
@@ -107,31 +110,31 @@ def z_normalise(X):
         normalised X: of shape (n_windows, 4, 256)
     '''
 
-    ms = np.zeros((X.shape[0], 4))          # mean of each (window, channel)
-    stds = np.zeros((X.shape[0], 4))        # stdev of each (window, channel)
+    ms = np.zeros((X.shape[0], X.shape[1]))          # mean of each (window, channel)
+    stds = np.zeros((X.shape[0], X.shape[1]))        # stdev of each (window, channel)
 
-    # iterate over channels
-    for j in range(X.shape[1]):
+    # iterate over windows
+    for i in range(X.shape[0]):
         # create term to be updated, X_pres
-        X_pres = X[:,j,:]
+        X_pres = X[i,:,:]
 
-        # iterate over windows
-        for i in range(X_pres.shape[0]):
+        # iterate over channels
+        for j in range(X.shape[1]):
 
-            m = np.mean(X_pres[i,:])
-            std = np.std(X_pres[i,:])
+            m = np.mean(X_pres[j,:])
+            std = np.std(X_pres[j,:])
 
             # Z-normalisation
-            X_pres[i,:] = X_pres[i,:] - m
+            X_pres[j,:] = X_pres[j,:] - m
             if std != 0:
-                X_pres[i,:] = X_pres[i,:] / std
+                X_pres[j,:] = X_pres[j,:] / std
 
             # save ms and stds
             ms[i, j] = m
             stds[i, j] = std
 
         # fill in X with updated X_pres
-        X[:,j,:] = X_pres
+        X[i,:,:] = X_pres
 
     return X, ms, stds
 
@@ -145,20 +148,20 @@ def undo_normalisation(X, ms, stds):
         stds (standard deviations) of shape (n_windows, 4)
     '''
 
-    # iterate over channels (only ppg channel now)
-    for j in range(X.shape[1]):
+    # iterate over windows
+    for i in range(X.shape[0]):
         # create term to be updated, X_pres
-        X_pres = X[:,j,:]
+        X_pres = X[i,:,:]
 
-        # iterate over windows
-        for i in range(X_pres.shape[0]):
+        # iterate over channels (only ppg channel now)
+        for j in range(X.shape[1]):
             # reverse normalisation
             if stds[i,j] != 0:
-                X_pres[i, :] = X_pres[i, :] * stds[i,j]
-            X_pres[i, :] = X_pres[i, :] + ms[i,j]
+                X_pres[j, :] = X_pres[j, :] * stds[i,j]
+            X_pres[j, :] = X_pres[j, :] + ms[i,j]
 
         # fill in X with updated X_pres
-        X[:,j,:] = X_pres
+        X[i,:,:] = X_pres
 
     return X
 
@@ -171,15 +174,18 @@ def ma_removal(data_dict, sessions):
     :return:
     '''
 
-    X_BVP = []          # filtered PPG data
+    # ppg_dalia_dict filtered for motion artifacts
+    ppg_filt_dict = {f'{session}': {} for session in sessions}
 
     # initialise CNN model
     n_epochs = 1000
     model = AdaptiveLinearModel(n_epochs=n_epochs)
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
-    # for s in sessions:
-    for s in sessions[:1]:
+    for s in sessions:
+
+        X_BVP = []  # filtered PPG data
+
         # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
 
@@ -190,10 +196,8 @@ def ma_removal(data_dict, sessions):
         idx = np.insert(idx, 0, 0)
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
-        # prep data for model: (batch_size, channels, height, width) = (batch_size, 4, 3, 256)
-
-        # for i in range(idx.size - 1):
-        for i in range(1):
+        # iterate over activities (batches)
+        for i in range(idx.size - 1):
 
             # create batches
             X_batch = X[idx[i]: idx[i + 1], :, :]  # splice X into current activity
@@ -205,17 +209,17 @@ def ma_removal(data_dict, sessions):
             X_batch = torch.from_numpy(X_batch).float()
 
             # accelerometer data are inputs:
-            x = X_batch[:, :, 1:, :]                      # (batch_size, 1, 3, 256)
+            x_acc = X_batch[:, :, 1:, :]                 # (batch_size, 1, 3, 256)
             # PPG data are targets:
-            y_true = X_batch[:, :, :1, :]                 # (batch_size, 1, 1, 256)
+            x_ppg = X_batch[:, :, :1, :]                 # (batch_size, 1, 1, 256)
 
             # training loop
             for epoch in range(n_epochs):
 
-                # forward pass through CNN to get x_out (motion artifact estimate)
-                x_out = model(x)
+                # forward pass through CNN to get x_ma (motion artifact estimate)
+                x_ma = model(x_acc)
                 # compute loss against raw PPG data
-                loss = model.adaptive_loss(y_true=y_true, y_pred=x_out)
+                loss = model.adaptive_loss(y_true=x_ppg, y_pred=x_ma)
                 # backprop
                 optimizer.zero_grad()
                 loss.backward()
@@ -224,29 +228,33 @@ def ma_removal(data_dict, sessions):
                 print(f'Session {s}, Batch: [{i + 1}/{idx.size - 1}],'
                       f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
-            # subtract the motion artifact estimate to extract cleaned BVP
+            # subtract the motion artifact estimate from raw signal to extract cleaned BVP
             with torch.no_grad():
-                x_out = y_true[:, 0, 0, :] - model(x)
+                x_bvp = x_ppg[:, 0, 0, :] - x_ma
 
             # get signal into original shape: (n_windows, 1, 256)
-            x_out = torch.unsqueeze(x_out, dim=1).numpy()
+            x_bvp = torch.unsqueeze(x_bvp, dim=1).numpy()
             # denormalise
-            x_out = undo_normalisation(x_out, ms, stds)
+            x_bvp = undo_normalisation(x_bvp, ms, stds)
 
             # append filtered batch
-            X_BVP.append(x_out)
+            X_BVP.append(x_bvp)
 
+        # add to dictionary
         X_BVP = np.concatenate(X_BVP, axis=0)
 
-        # unravel & test plot
-        X_BVP = X_BVP.flatten()
-        X_PPG = data_dict[s]['ppg'].flatten()
-        plt.plot(X_PPG)
-        plt.plot(X_BVP)
-        plt.show()
+        ppg_filt_dict[s]['bvp'] = X_BVP
+        ppg_filt_dict[s]['label'] = data_dict[s]['label']
+        ppg_filt_dict[s]['activity'] = data_dict[s]['activity']
 
+        print(f'{s} shape: {ppg_filt_dict[s]['bvp'].shape}')
 
-    return X_BVP
+    # save dictionary
+    with open('ppg_filt_dict', 'wb') as file:
+        pickle.dump(data_dict, file)
+    print(f'Data dictionary saved to ppg_filt_dict')
+
+    return
 
 
 def main():
@@ -254,7 +262,6 @@ def main():
     def save_dict(sessions, filename='ppg_dalia_dict'):
 
         # create dictionary to hold all data
-        data_dict = {f'{session}': {} for session in sessions}
 
         # iterate over sessions
         for session in sessions:

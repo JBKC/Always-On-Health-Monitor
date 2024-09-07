@@ -1,5 +1,5 @@
 '''
-Adaptive linear filter
+Adaptive linear filter using Pytorch
 Takes in accelerometer data as input into a CNN, where the adaptive linear filter is the loss function
 Input shape = (3,256,1)
 '''
@@ -26,8 +26,8 @@ class AdaptiveLinearModel(nn.Module):
     def forward(self, X):
         '''
         Define forward pass of adaptive filter model
-        :param X: shape (batch_size, n_windows,4,256)
-        :return:
+        :param X: shape (batch_size, n_windows, 3, 256)
+        :return: X: shape (batch_size, 256)
         '''
 
         self.train()
