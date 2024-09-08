@@ -196,8 +196,12 @@ def ma_removal(data_dict, sessions):
         idx = np.insert(idx, 0, 0)
         idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
 
+        initial_state = model.state_dict()
+
         # iterate over activities (batches)
         for i in range(idx.size - 1):
+
+            model.load_state_dict(initial_state)
 
             # create batches
             X_batch = X[idx[i]: idx[i + 1], :, :]  # splice X into current activity
