@@ -1,7 +1,7 @@
 '''
 Adaptive linear filter using Pytorch
 Takes in accelerometer data as input into a CNN, where the adaptive linear filter is the loss function
-Input shape = (3,256,1)
+Input shape = (accelerometer channels, num samples per window, 1) = (3,256,1)
 '''
 
 import numpy as np

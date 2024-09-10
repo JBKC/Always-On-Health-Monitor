@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from accelerometer_cnn import AdaptiveLinearModel
-from torch.utils.data import DataLoader, TensorDataset
 
 
 def save_data(s, data_dict):
@@ -18,7 +17,7 @@ def save_data(s, data_dict):
     Pull raw data from PPG Dalia files and save down to a dictionary
     :param s: session name
     :param data_dict: empty dictionary to hold data
-    :return:
+    :return: data_dict: filled dictionary with all PPG Dalia data
     '''
 
     # pull raw data
@@ -101,74 +100,51 @@ def window_data(data_dict, s):
 
     return data_dict
 
-
 def z_normalise(X):
     '''
-    Z-normalises data for all windows, across each channel
+    Z-normalises data for all windows, across each channel, using vectorisation
     :param X: of shape (n_windows, 4, 256)
     :return:
-        normalised X: of shape (n_windows, 4, 256)
-    '''
-
-    ms = np.zeros((X.shape[0], X.shape[1]))          # mean of each (window, channel)
-    stds = np.zeros((X.shape[0], X.shape[1]))        # stdev of each (window, channel)
-
-    # iterate over windows
-    for i in range(X.shape[0]):
-        # create term to be updated, X_pres
-        X_pres = X[i,:,:]
-
-        # iterate over channels
-        for j in range(X.shape[1]):
-
-            m = np.mean(X_pres[j,:])
-            std = np.std(X_pres[j,:])
-
-            # Z-normalisation
-            X_pres[j,:] = X_pres[j,:] - m
-            if std != 0:
-                X_pres[j,:] = X_pres[j,:] / std
-
-            # save ms and stds
-            ms[i, j] = m
-            stds[i, j] = std
-
-        # fill in X with updated X_pres
-        X[i,:,:] = X_pres
-
-    return X, ms, stds
-
-def undo_normalisation(X, ms, stds):
-    '''
-    Transform cleaned PPG signal back into original space following filtering
-    :param X: of shape (n_windows, 1, 256)
-    :return:
-        normalised X: of shape (n_windows, 1, 256)
+        X_norm: of shape (n_windows, 4, 256)
         ms (means): of shape (n_windows, 4)
         stds (standard deviations) of shape (n_windows, 4)
     '''
 
-    # iterate over windows
-    for i in range(X.shape[0]):
-        # create term to be updated, X_pres
-        X_pres = X[i,:,:]
+    # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4)
+    ms = np.mean(X, axis=2)
+    stds = np.std(X, axis=2)
 
-        # iterate over channels (only ppg channel now)
-        for j in range(X.shape[1]):
-            # reverse normalisation
-            if stds[i,j] != 0:
-                X_pres[j, :] = X_pres[j, :] * stds[i,j]
-            X_pres[j, :] = X_pres[j, :] + ms[i,j]
+    # reshape ms and stds to allow broadcasting
+    ms_reshaped = ms[:, :, np.newaxis]
+    stds_reshaped = stds[:, :, np.newaxis]
 
-        # fill in X with updated X_pres
-        X[i,:,:] = X_pres
+    # Z-normalisation
+    X_norm = (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
 
-    return X
+    return X_norm, ms, stds
+
+
+def undo_normalisation(X_norm, ms, stds):
+    '''
+    Transform cleaned PPG signal back into original space following filtering
+    :params:
+        X_norm: of shape (n_windows, 1, 256)
+        ms (means): of shape (n_windows, 4)
+        stds (standard deviations) of shape (n_windows, 4)
+    :return:
+        X: of shape (n_windows, 1, 256)
+    '''
+
+    ms_reshaped = ms[:, :, np.newaxis]
+    stds_reshaped = stds[:, :, np.newaxis]
+
+    return (X_norm * np.where(stds_reshaped != 0, stds_reshaped, 1)) + ms_reshaped
 
 
 def ma_removal(data_dict, sessions):
     '''
     Remove session-specific motion artifacts from raw PPG data by training on accelerometer_cnn
+    Save down to dictionary "ppg_filt_dict"
     :param data_dict: dictionary containing ppg, acc, label and activity data for each session
     :param s: list of sessions
     :return:
@@ -288,7 +264,7 @@ def main():
 
     sessions = [f'S{i}' for i in range(1, 16)]
 
-    # comment out save or load (to make a typed input switch)
+    # comment out save or load
     # save_dict(sessions)
     data_dict = load_dict()
 
