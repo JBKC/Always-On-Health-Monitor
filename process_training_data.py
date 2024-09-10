@@ -31,8 +31,6 @@ def save_data(s, data_dict):
         data_dict[s]['label'] = (data['label'])                       # ground truth EEG
         data_dict[s]['activity'] = data['activity']
 
-        print(len(data_dict[s]['ppg']))
-
         # alignment corrections
         data_dict[s]['ppg'] = data_dict[s]['ppg'][38:,:].T              # (1, n_samples)
         data_dict[s]['acc'] = data_dict[s]['acc'][:-38,:].T             # (3, n_samples)
@@ -239,6 +237,7 @@ def main():
     def save_dict(sessions, filename='ppg_dalia_dict'):
 
         # create dictionary to hold all data
+        data_dict = {f'{session}': {} for session in sessions}
 
         # iterate over sessions
         for session in sessions:
