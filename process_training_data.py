@@ -51,7 +51,7 @@ def save_data(s, data_dict):
 
 def window_data(data_dict, s):
     '''
-    Segment data into windows of 8 seconds with 2 second overlap
+    Segment data into windows of 8 seconds with 2 second overlap. Only used when saving down raw data for first time
     :param data_dict: dictionary with all signals in arrays for given session
     :return: dictionary of windowed signals containing X and Y data
         ppg.shape = (n_windows, 1, 256)
@@ -123,7 +123,6 @@ def z_normalise(X):
 
     return X_norm, ms, stds
 
-
 def undo_normalisation(X_norm, ms, stds):
     '''
     Transform cleaned PPG signal back into original space following filtering
@@ -139,7 +138,6 @@ def undo_normalisation(X_norm, ms, stds):
     stds_reshaped = stds[:, :, np.newaxis]
 
     return (X_norm * np.where(stds_reshaped != 0, stds_reshaped, 1)) + ms_reshaped
-
 
 def ma_removal(data_dict, sessions):
     '''
@@ -235,7 +233,6 @@ def ma_removal(data_dict, sessions):
     print(f'Data dictionary saved to ppg_filt_dict')
 
     return
-
 
 def main():
 
