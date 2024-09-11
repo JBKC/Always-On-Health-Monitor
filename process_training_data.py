@@ -147,6 +147,7 @@ def ma_removal(data_dict, sessions):
     '''
 
     # ppg_dalia_dict filtered for motion artifacts
+
     ppg_filt_dict = {f'{session}': {} for session in sessions}
 
     # initialise CNN model
@@ -227,7 +228,7 @@ def ma_removal(data_dict, sessions):
 
     # save dictionary
     with open('ppg_filt_dict', 'wb') as file:
-        pickle.dump(data_dict, file)
+        pickle.dump(ppg_filt_dict, file)
     print(f'Data dictionary saved to ppg_filt_dict')
 
     return
