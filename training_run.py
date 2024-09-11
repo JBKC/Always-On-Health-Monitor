@@ -6,14 +6,18 @@ import numpy as np
 import pickle
 
 
-def temporal_pairs(dict):
+def temporal_pairs(dict, sessions):
     '''
-    Create temporal pairs between adjacent x_BVP points
-    :param dict:
+    Create temporal pairs between adjacent x_BVP points: x_t & y_t+1
+    :param dict: dictionary of session data - each session shape (n_windows, n_channels, n_samples)
     :return:
     '''
 
-    print(dict['S1']['acc'])
+    for s in sessions:
+
+        print(dict[s]['bvp'].shape)
+
+
 
 def main():
 
@@ -25,11 +29,12 @@ def main():
 
             return data_dict
 
+    sessions = [f'S{i}' for i in range(1, 16)]
+
     # load dictionary
     dict = load_dict()
 
-
-    temporal_pairs(dict)
+    temporal_pairs(dict, sessions)
 
 
 

@@ -143,7 +143,7 @@ def ma_removal(data_dict, sessions):
     Save down to dictionary "ppg_filt_dict"
     :param data_dict: dictionary containing ppg, acc, label and activity data for each session
     :param s: list of sessions
-    :return:
+    :return: ppg_filt_dict: dictionary containing bvp (cleaned ppg) along with acc, label and activity
     '''
 
     # ppg_dalia_dict filtered for motion artifacts
@@ -211,8 +211,11 @@ def ma_removal(data_dict, sessions):
 
             # get signal into original shape: (n_windows, 1, 256)
             x_bvp = torch.unsqueeze(x_bvp, dim=1).numpy()
+
             # denormalise
             x_bvp = undo_normalisation(x_bvp, ms, stds)
+            # keep only BVP (remove ACC)
+            x_bvp = np.expand_dims(x_bvp[:,0,:], axis=1)
 
             # append filtered batch
             X_BVP.append(x_bvp)
@@ -221,6 +224,7 @@ def ma_removal(data_dict, sessions):
         X_BVP = np.concatenate(X_BVP, axis=0)
 
         ppg_filt_dict[s]['bvp'] = X_BVP
+        ppg_filt_dict[s]['acc'] = data_dict[s]['acc']
         ppg_filt_dict[s]['label'] = data_dict[s]['label']
         ppg_filt_dict[s]['activity'] = data_dict[s]['activity']
 
