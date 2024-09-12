@@ -55,7 +55,10 @@ def train_model(dict, sessions):
     n_epochs = 500
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
-    # model = TemporalAttentionModel()
+
+    # create model instance(s)
+    conv_block = TemporalConvolution()
+    # att_model = TemporalAttentionModel()
     # optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create temporal pairs of time windows
@@ -102,20 +105,22 @@ def train_model(dict, sessions):
                 # create batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    # forward pass x_bvp_i (X_cur) and x_bvp_i-1 (X_prev) through convolutions
-                    X_cur = X_batch[:,0,:,0]
-                    X_prev = X_batch[:,0,:,-1]
+                    # forward pass x_bvp_i (x_cur) and x_bvp_i-1 (x_prev) through convolutions
+                    x_cur = X_batch[:,0,:,0]
+                    x_prev = X_batch[:,0,:,-1]
 
-                    TemporalConvolution(X_cur, X_prev)
+                    x_cur, x_prev = conv_block(x_cur, x_prev)
 
-                    # attn
+                    # pass through attention model
+                    # att_model(x_cur, x_prev)
 
-                    # compute loss
-                    loss = model.loss_func(X_est, y)
-                    # backprop
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+
+                    # # compute loss
+                    # loss = model.loss_func(X_est, y)
+                    # # backprop
+                    # optimizer.zero_grad()
+                    # loss.backward()
+                    # optimizer.step()
 
                     print(f'Session S{s+1}, Batch: [{1}],'
                           f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')

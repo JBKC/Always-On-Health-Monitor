@@ -48,12 +48,12 @@ class TemporalConvolution(nn.Module):
     Pass data through series of convolution blocks
     '''
 
-    def __init__(self):
+    def __init__(self, in_channels=256):
         super().__init__()
 
         self.conv_block1 = ConvBlock(in_channels=in_channels, n_filters=32, pool_size=4)
-        self.conv_block2 = ConvBlock(in_channels=in_channels, n_filters=48)
-        self.conv_block3 = ConvBlock(in_channels=in_channels, n_filters=64)
+        self.conv_block2 = ConvBlock(in_channels=32, n_filters=48)
+        self.conv_block3 = ConvBlock(in_channels=48, n_filters=64)
 
     def forward(self, x_cur, x_prev):
         '''
