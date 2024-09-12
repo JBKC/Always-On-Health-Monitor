@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 from sklearn.utils import shuffle
 import time
+import pandas as pd
 
 
 def temporal_pairs(dict, split):
@@ -57,17 +58,11 @@ def train_model(dict, sessions):
 
     for split in splits:
 
-        # create temporal pairs
+        # create temporal pairs of time windows
         x, y, act = temporal_pairs(dict, split)
-        
 
 
-
-
-    
-
-
-
+        print(test_idxs)
 
 
 def main():

@@ -55,6 +55,39 @@ class AttentionModule(nn.Module):
 
 
 
+class TemporalAttentionModel(nn.Module):
+    '''
+    Full architecture build
+    '''
+
+    def __init__(self):
+        super().__init__()
+
+        self.conv_block1 = ConvBlock(in_channels=in_channels, n_filters=32, pool_size=4)
+        self.conv_block2 = ConvBlock(in_channels=in_channels, n_filters=48)
+        self.conv_block3 = ConvBlock(in_channels=in_channels, n_filters=64)
+        self.attention = AttentionModule()
+        self.ln = nn.LayerNorm()
+        self.fc1 = nn.Linear()
+        self.fc2 = nn.Linear()
+        self.dropout = nn.Dropout()
+
+
+    def forward(self, input):
+
+        # SPLIT INPUT INTO X_BVPi & X_BVP_i-1s
+
+        x = self.conv_block1(x)
+        x = self.conv_block2(x)
+        x = self.conv_block3(x)
+        x = self.attention(x)
+
+        x = self.fc1(self.ln(x))
+        x = self.fc2(self.dropout(x))
+
+        return x
+
+
 
 
 
