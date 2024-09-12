@@ -1,5 +1,5 @@
 '''
-Model combining convolution of time window batches & attention across adjacent time window pairs
+Model combining convolution of time window batches & attention across adjacent time windows
 '''
 
 import torch
@@ -22,7 +22,7 @@ class ConvBlock(nn.Module):
         self.conv = nn.Sequential(
             *[nn.Sequential(
                 nn.Conv1d(
-                    in_channels if i == 0 else n_filters,
+                    in_channels=in_channels if i == 0 else n_filters,
                     out_channels=n_filters,
                     kernel_size=kernel_size,
                     dilation=dilation,
@@ -58,18 +58,27 @@ class TemporalConvolution(nn.Module):
     def forward(self, x_cur, x_prev):
         '''
         Pass both x_cur and x_prev through the same convolution blocks (weight sharing)
-        :param x_cur:
+        :param x_cur: shape (batch_size,
+        :param x_prev:
         :return:
         '''
+
+        print(x_cur.shape)
 
         x_cur = self.conv_block1(x_cur)
         x_prev = self.conv_block1(x_prev)
 
+        print(x_cur.shape)
+
         x_cur = self.conv_block2(x_cur)
         x_prev = self.conv_block2(x_prev)
 
+        print(x_cur.shape)
+
         x_cur = self.conv_block3(x_cur)
         x_prev = self.conv_block3(x_prev)
+
+        print(x_cur.shape)
 
         return x_cur, x_prev
 
@@ -85,18 +94,23 @@ class AttentionModule(nn.Module):
         super().__init__()
 
         # single attention module
-        self.attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads)
+        self.attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
 
     def forward(self, query, key, value):
         '''
-        :param query:
+        :param query: x_prev, shape (
         :param key:
         :param value:
         :return:
         '''
 
+        # reformat for attention: (batch_size, sequence_length, embed_dim)
+        print(query.shape)
+
+
 
         out, _ = self.attention(query, key, value)
+        print(out.shape)
 
         return out
 
