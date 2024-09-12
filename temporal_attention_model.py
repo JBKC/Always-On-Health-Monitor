@@ -98,22 +98,21 @@ class AttentionModule(nn.Module):
     Input is the output of the convolutional blocks
     '''
 
-    def __init__(self, embed_dim=16, num_heads=4):
+    def __init__(self, n_embd=16, num_heads=4):
         super().__init__()
 
         # single attention module
-        self.attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
+        self.attention = nn.MultiheadAttention(embed_dim=n_embd, num_heads=num_heads, batch_first=True)
 
     def forward(self, query, key, value):
         '''
         :param query: x_prev, shape (batch_size, n_filters, embed_dim)
         :param key: x_cur, shape (batch_size, n_filters, embed_dim)
         :param value: x_cur
-        :return:
+        :return: output of the attention formula
         '''
 
         out, _ = self.attention(query, key, value)
-        print(out.shape)
 
         return out
 
@@ -123,21 +122,21 @@ class TemporalAttentionModel(nn.Module):
     Attention architecture build
     '''
 
-    def __init__(self):
+    def __init__(self, n_embd=16):
         super().__init__()
 
         self.convolution = TemporalConvolution()
         self.attention = AttentionModule()
-        # self.ln = nn.LayerNorm()
-        # self.fc1 = nn.Linear(256)
-        # self.relu = nn.ReLU()
-        # self.dropout = nn.Dropout(p=0.125)
-        # self.fc2 = nn.Linear(2)
+        self.ln = nn.LayerNorm(normalized_shape=n_embd)
+        self.fc1 = nn.Linear(256)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=0.125)
+        self.fc2 = nn.Linear(2)
 
     def forward(self, x_cur, x_prev):
         '''
-        :param x_cur:
-        :param x_prev:
+        :param x_cur: shape (batch_size, n_channels, sequence_length)
+        :param x_prev: shape (batch_size, n_channels, sequence_length)
         :return:
         '''
 
@@ -146,6 +145,14 @@ class TemporalAttentionModel(nn.Module):
 
         # attention with residual connection: query = x_prev, key = value = x_cur
         x = x_cur + self.attention(x_prev, x_cur, x_cur)
+
+        # layer normalisation over embedding dimension
+        x = self.ln(x)
+
+
+
+
+        print(x.shape)
 
         # x_cur = x_cur.flatten()
         #
