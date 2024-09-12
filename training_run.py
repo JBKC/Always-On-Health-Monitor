@@ -4,18 +4,69 @@ Main script for training temporal attention model
 
 import numpy as np
 import pickle
+from sklearn.utils import shuffle
+import time
 
 
-def temporal_pairs(dict, sessions):
+def temporal_pairs(dict, split):
     '''
-    Create temporal pairs between adjacent x_BVP points: x_t & y_t+1
-    :param dict: dictionary of session data - each session shape (n_windows, n_channels, n_samples)
+    Create temporal pairs between adjacent windows for training/testing splits
+    :param
+        dict: dictionary of session data - each session shape (n_windows, n_channels, n_samples)
+        split: list of session names in split
+    :return: list of temporal pairs (x_split), labels (y_split) and activities (act_split)
+    '''
+
+    x_split = []
+    y_split = []
+    act_split = []
+
+    for s in split:
+
+        x = dict[s]['bvp']
+
+        # pair adjacent windows (i, i+1)
+        x_pairs = (np.expand_dims(x[:-1,:],axis=-1) , np.expand_dims(x[1:,:],axis=-1))
+        x_pairs = np.concatenate(x_pairs,axis=-1)
+        # results in concatenated pairs of shape (n_windows, 1, n_samples, 2)
+        x_split.append(x_pairs)
+
+        y_split.append(dict[s]['label'][1:])
+        act_split.append(dict[s]['activity'][1:])
+
+    return x_split, y_split, act_split
+
+def train_model(dict, sessions):
+    '''
+    Create Leave One Session Out split
+    :param dict:
+    :param sessions:
     :return:
     '''
 
-    for s in sessions:
+    n_epochs = 500
+    batch_size = 256
+    n_splits = 4
 
-        print(dict[s]['bvp'].shape)
+    # LOSO splits
+    ids = shuffle(sessions)
+    splits = np.array_split(ids, n_splits)
+
+    # train model
+    start_time = time.time()
+
+    for split in splits:
+
+        # create temporal pairs
+        x, y, act = temporal_pairs(dict, split)
+        
+
+
+
+
+    
+
+
 
 
 
@@ -33,8 +84,7 @@ def main():
 
     # load dictionary
     dict = load_dict()
-
-    temporal_pairs(dict, sessions)
+    train_model(dict, sessions)
 
 
 
