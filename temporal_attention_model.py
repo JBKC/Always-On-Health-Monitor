@@ -55,17 +55,23 @@ class TemporalConvolution(nn.Module):
         self.conv_block2 = ConvBlock(in_channels=in_channels, n_filters=48)
         self.conv_block3 = ConvBlock(in_channels=in_channels, n_filters=64)
 
-    def forward(self, x):
+    def forward(self, x_cur, x_prev):
         '''
-        :param x:
+        Pass both x_cur and x_prev through the same convolution blocks (weight sharing)
+        :param x_cur:
         :return:
         '''
 
-        x = self.conv_block1(x)
-        x = self.conv_block2(x)
-        x = self.conv_block3(x)
+        x_cur = self.conv_block1(x_cur)
+        x_prev = self.conv_block1(x_prev)
 
-        return x
+        x_cur = self.conv_block2(x_cur)
+        x_prev = self.conv_block2(x_prev)
+
+        x_cur = self.conv_block3(x_cur)
+        x_prev = self.conv_block3(x_prev)
+
+        return x_cur, x_prev
 
 
 

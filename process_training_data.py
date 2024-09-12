@@ -228,7 +228,7 @@ def ma_removal(data_dict, sessions):
         ppg_filt_dict[s]['label'] = data_dict[s]['label']
         ppg_filt_dict[s]['activity'] = data_dict[s]['activity']
 
-        print(f'{s} shape: {ppg_filt_dict[s]['bvp'].shape}')
+        print(f"{s} shape: {ppg_filt_dict[s]['bvp'].shape}")
 
     # save dictionary
     with open('ppg_filt_dict', 'wb') as file:

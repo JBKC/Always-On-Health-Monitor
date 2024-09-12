@@ -6,37 +6,40 @@ import numpy as np
 import pickle
 from sklearn.utils import shuffle
 import time
-from temporal_attention_model import TemporalAttentionModel
+from temporal_attention_model import TemporalConvolution, TemporalAttentionModel
+import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
 
 
-def temporal_pairs(dict, split):
+def temporal_pairs(dict, sessions):
     '''
     Create temporal pairs between adjacent windows for all data
-    :param
-        dict: dictionary of session data - each session shape (n_windows, n_channels, n_samples)
-        split: list of session names in split
-    :return: lists of temporal pairs (x_split), labels (y_split) and activities (act_split)
+    :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
+    :param sessions: list of session names
+    :return x_all: temporal pairs of each session as a list of length n_sessions - each entry shape (n_windows, 1, 256, 2)
+    :return y_all: ground truth HR labels as a list of length n_sessions
+    :return act_all: activity labels as a list of length n_sessions
     '''
 
     x_all = []
     y_all = []
     act_all = []
 
-    for s in split:
+    for s in sessions:
 
         x = dict[s]['bvp']
 
-        # pair adjacent windows (i, i+1)
-        x_pairs = (np.expand_dims(x[:-1,:],axis=-1) , np.expand_dims(x[1:,:],axis=-1))
+        # pair adjacent windows (i, i-1)
+        x_pairs = (np.expand_dims(x[1:,:],axis=-1) , np.expand_dims(x[:-1,:],axis=-1))
         x_pairs = np.concatenate(x_pairs,axis=-1)
         # results in concatenated pairs of shape (n_windows, 1, n_samples, 2)
-        x_all.append(x_pairs)
 
+        x_all.append(x_pairs)
         y_all.append(dict[s]['label'][1:])
         act_all.append(dict[s]['activity'][1:])
+
 
     return x_all, y_all, act_all
 
@@ -50,10 +53,10 @@ def train_model(dict, sessions):
 
     # initialise model
     n_epochs = 500
-    batch_size = 256
+    batch_size = 256            # number of windows to be processed together
     n_splits = 4
-    model = TemporalAttentionModel()
-    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    # model = TemporalAttentionModel()
+    # optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create temporal pairs of time windows
     x, y, act = temporal_pairs(dict, sessions)
@@ -71,6 +74,14 @@ def train_model(dict, sessions):
         y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
         act_train = np.concatenate([act[i] for i in train_idxs], axis=0)
 
+        # convert to torch tensor
+        X_train = torch.tensor(X_train, dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.float32)
+
+        # create TensorDataset and DataLoader for batching
+        train_dataset = TensorDataset(X_train, y_train)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
         # create inner LOSO split to get testing & validation split
         for s in split:
 
@@ -79,31 +90,35 @@ def train_model(dict, sessions):
             y_test = y[s]
             act_test = act[s]
 
-            # set validation data
+            # set validation data (remainder of current split)
             val_idxs = np.array([j for j in split if j != s])
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
             act_val = np.concatenate([act[j] for j in val_idxs], axis=0)
 
-            # X splits are now shape (total n_windows across included sessions, 1, 256, 2)
-            # we want (1, 1, 256, 2) ie one batch = one session
-
-
-            # ***add batching
-
+            # training loop
             for epoch in range(n_epochs):
 
-                # forward pass through model
-                X_est = model(X_train)
-                # compute loss
-                loss = model.loss_func(X_est, y)
-                # backprop
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                # create batches of windows to pass through model
+                for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                print(f'Session S{s+1}, Batch: [{}],'
-                      f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
+                    # forward pass x_bvp_i (X_cur) and x_bvp_i-1 (X_prev) through convolutions
+                    X_cur = X_batch[:,0,:,0]
+                    X_prev = X_batch[:,0,:,-1]
+
+                    TemporalConvolution(X_cur, X_prev)
+
+                    # attn
+
+                    # compute loss
+                    loss = model.loss_func(X_est, y)
+                    # backprop
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                    print(f'Session S{s+1}, Batch: [{1}],'
+                          f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
 
 
