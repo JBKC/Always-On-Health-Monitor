@@ -106,9 +106,9 @@ def train_model(dict, sessions):
 
                     ## batch norm??
 
-                    # model input shape is (batch_size, sequence_length, 1)
-                    x_cur = X_batch[:,:,:,0].transpose(1,-1)
-                    x_prev = X_batch[:,:,:,-1].transpose(1,-1)
+                    # model input shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
+                    x_cur = X_batch[:,:,:,0]
+                    x_prev = X_batch[:,:,:,-1]
 
                     # forward pass x_bvp_i (x_cur) and x_bvp_i-1 (x_prev) through convolutions and then attention block
                     x_cur, x_prev = model(x_cur, x_prev)

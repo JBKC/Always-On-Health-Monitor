@@ -4,6 +4,7 @@ Model combining convolution of time window batches & attention across adjacent t
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class ConvBlock(nn.Module):
     '''
@@ -11,28 +12,30 @@ class ConvBlock(nn.Module):
     Each block contains 3 convolutional layers
     '''
 
-    def __init__(self, in_channels, n_filters, kernel_size=5, dilation=2, pool_size=2, dropout=0.5):
+    def __init__(self, in_channels, n_filters, pool_size, kernel_size=5, dilation=2, dropout=0.5):
 
         super().__init__()
 
-        # causal padding
-        padding = dilation * (kernel_size - 1)
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.n_filters = n_filters
 
         # conv block = [conv layer + RELU] * 3 + average pooling + dropout
-        self.conv = nn.Sequential(
+        self.conv_layers = nn.Sequential(
             *[nn.Sequential(
                 nn.Conv1d(
                     in_channels=in_channels if i == 0 else n_filters,
                     out_channels=n_filters,
                     kernel_size=kernel_size,
-                    dilation=dilation,
-                    padding=padding
+                    dilation=dilation
                 ),
                 nn.ReLU()
-            ) for i in range(3)],
-            nn.AvgPool1d(kernel_size=pool_size),
-            nn.Dropout(p=dropout)
+            ) for i in range(3)]
         )
+
+        self.pool = nn.AvgPool1d(kernel_size=pool_size)
+        self.dropout = nn.Dropout(p=dropout)
+
 
     def forward(self, x):
         '''
@@ -41,44 +44,49 @@ class ConvBlock(nn.Module):
         :return:
         '''
 
-        return self.conv(x)
+        for conv in self.conv_layers:
+            # causal padding
+            padding_size = self.dilation * (self.kernel_size - 1)
+
+            # apply to only left side of sequence
+            x = F.pad(x, (padding_size, 0))
+
+            # Apply convolution and ReLU
+            x = F.relu(conv(x))
+
+        # Apply pooling and dropout
+        x = self.pool(x)
+        x = self.dropout(x)
+
+        return x
 
 class TemporalConvolution(nn.Module):
     '''
     Pass data through series of convolution blocks
     '''
 
-    def __init__(self, in_channels=256):
+    def __init__(self):
         super().__init__()
 
-        self.conv_block1 = ConvBlock(in_channels=in_channels, n_filters=32, pool_size=4)
-        self.conv_block2 = ConvBlock(in_channels=32, n_filters=48)
-        self.conv_block3 = ConvBlock(in_channels=48, n_filters=64)
+        self.conv_block1 = ConvBlock(in_channels=1, n_filters=32, pool_size=4)
+        self.conv_block2 = ConvBlock(in_channels=32, n_filters=48, pool_size=2)
+        self.conv_block3 = ConvBlock(in_channels=48, n_filters=64, pool_size=2)
 
     def forward(self, x_cur, x_prev):
         '''
         Pass both x_cur and x_prev through the same convolution blocks (weight sharing)
-        :param x_cur: shape (batch_size,
-        :param x_prev:
-        :return:
+        :param x_cur, x_prev: shape (batch_size, n_channels, sequence_length)
+        :return x_cur, x_prev: shape (batch_size, n_filters, embed_dim)
         '''
-
-        print(x_cur.shape)
 
         x_cur = self.conv_block1(x_cur)
         x_prev = self.conv_block1(x_prev)
 
-        print(x_cur.shape)
-
         x_cur = self.conv_block2(x_cur)
         x_prev = self.conv_block2(x_prev)
 
-        print(x_cur.shape)
-
         x_cur = self.conv_block3(x_cur)
         x_prev = self.conv_block3(x_prev)
-
-        print(x_cur.shape)
 
         return x_cur, x_prev
 
@@ -98,16 +106,11 @@ class AttentionModule(nn.Module):
 
     def forward(self, query, key, value):
         '''
-        :param query: x_prev, shape (
-        :param key:
-        :param value:
+        :param query: x_prev, shape (batch_size, n_filters, embed_dim)
+        :param key: x_cur, shape (batch_size, n_filters, embed_dim)
+        :param value: x_cur
         :return:
         '''
-
-        # reformat for attention: (batch_size, sequence_length, embed_dim)
-        print(query.shape)
-
-
 
         out, _ = self.attention(query, key, value)
         print(out.shape)
@@ -144,10 +147,10 @@ class TemporalAttentionModel(nn.Module):
         # attention with residual connection: query = x_prev, key = value = x_cur
         x = x_cur + self.attention(x_prev, x_cur, x_cur)
 
-        x_cur = x_cur.flatten()
-
-        x = self.relu(self.fc1(self.ln(x)))
-        x = self.fc2(self.dropout(x))
+        # x_cur = x_cur.flatten()
+        #
+        # x = self.relu(self.fc1(self.ln(x)))
+        # x = self.fc2(self.dropout(x))
 
         return x
 
