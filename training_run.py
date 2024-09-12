@@ -57,9 +57,8 @@ def train_model(dict, sessions):
     n_splits = 4
 
     # create model instance(s)
-    conv_block = TemporalConvolution()
-    # att_model = TemporalAttentionModel()
-    # optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    model = TemporalAttentionModel()
+    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create temporal pairs of time windows
     x, y, act = temporal_pairs(dict, sessions)
@@ -105,14 +104,13 @@ def train_model(dict, sessions):
                 # create batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    # forward pass x_bvp_i (x_cur) and x_bvp_i-1 (x_prev) through convolutions
+                    ## batch norm??
+
+                    # forward pass x_bvp_i (x_cur) and x_bvp_i-1 (x_prev) through convolutions and then attention block
                     x_cur = X_batch[:,0,:,0]
                     x_prev = X_batch[:,0,:,-1]
 
-                    x_cur, x_prev = conv_block(x_cur, x_prev)
-
-                    # pass through attention model
-                    # att_model(x_cur, x_prev)
+                    x_cur, x_prev = model(x_cur, x_prev)
 
 
                     # # compute loss

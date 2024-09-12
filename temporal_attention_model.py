@@ -1,5 +1,5 @@
 '''
-Model combining convolution along channels & cross attention across channels
+Model combining convolution of time window batches & attention across adjacent time window pairs
 '''
 
 import torch
@@ -84,8 +84,8 @@ class AttentionModule(nn.Module):
     def __init__(self, embed_dim=16, num_heads=4):
         super().__init__()
 
-        # single cross-attention module
-        self.cross_attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads)
+        # single attention module
+        self.attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads)
 
     def forward(self, query, key, value):
         '''
@@ -95,38 +95,44 @@ class AttentionModule(nn.Module):
         :return:
         '''
 
-        out, _ = self.cross_attention(query, key, value)
+
+        out, _ = self.attention(query, key, value)
 
         return out
 
 
 class TemporalAttentionModel(nn.Module):
     '''
-    Full architecture build
+    Attention architecture build
     '''
 
     def __init__(self):
         super().__init__()
 
+        self.convolution = TemporalConvolution()
         self.attention = AttentionModule()
-        self.ln = nn.LayerNorm()
-        self.fc1 = nn.Linear()
-        self.fc2 = nn.Linear()
-        self.dropout = nn.Dropout(p=0.125)
+        # self.ln = nn.LayerNorm()
+        # self.fc1 = nn.Linear(256)
+        # self.relu = nn.ReLU()
+        # self.dropout = nn.Dropout(p=0.125)
+        # self.fc2 = nn.Linear(2)
 
-
-    def forward(self, input):
+    def forward(self, x_cur, x_prev):
         '''
-        Input shape =
-        :param input:
+        :param x_cur:
+        :param x_prev:
         :return:
         '''
 
-        # SPLIT INPUT INTO X_BVPi & X_BVP_i-1s
+        # temporal convolution
+        x_cur, x_prev = self.convolution(x_cur, x_prev)
 
-        x = self.attention(x)
+        # attention with residual connection: query = x_prev, key = value = x_cur
+        x = x_cur + self.attention(x_prev, x_cur, x_cur)
 
-        x = self.fc1(self.ln(x))
+        x_cur = x_cur.flatten()
+
+        x = self.relu(self.fc1(self.ln(x)))
         x = self.fc2(self.dropout(x))
 
         return x
