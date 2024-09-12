@@ -60,7 +60,7 @@ class TemporalAttentionModel(nn.Module):
     Full architecture build
     '''
 
-    def __init__(self,n_epochs):
+    def __init__(self):
         super().__init__()
 
         self.conv_block1 = ConvBlock(in_channels=in_channels, n_filters=32, pool_size=4)
@@ -87,7 +87,8 @@ class TemporalAttentionModel(nn.Module):
 
         return x
 
-
+    def loss_func(self):
+        return
 
 
 

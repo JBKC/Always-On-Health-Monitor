@@ -8,6 +8,8 @@ from sklearn.utils import shuffle
 import time
 from temporal_attention_model import TemporalAttentionModel
 import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+
 
 
 def temporal_pairs(dict, split):
@@ -50,7 +52,7 @@ def train_model(dict, sessions):
     n_epochs = 500
     batch_size = 256
     n_splits = 4
-    model = TemporalAttentionModel(n_epochs=n_epochs)
+    model = TemporalAttentionModel()
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create temporal pairs of time windows
@@ -82,6 +84,22 @@ def train_model(dict, sessions):
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
             act_val = np.concatenate([act[j] for j in val_idxs], axis=0)
+
+            # ***add batching
+
+            for epoch in range(n_epochs):
+
+                # forward pass through model
+                X_est = model(X_train)
+                # compute loss
+                loss = model.loss_func(X_est, y)
+                # backprop
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                print(f'Session S{s+1}, Batch: [{}],'
+                      f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
 
 
