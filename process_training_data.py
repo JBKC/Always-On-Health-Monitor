@@ -152,7 +152,7 @@ def ma_removal(data_dict, sessions):
 
     # initialise CNN model
     n_epochs = 1000
-    model = AdaptiveLinearModel(n_epochs=n_epochs)
+    model = AdaptiveLinearModel()
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
 
     for s in sessions:

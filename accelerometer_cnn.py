@@ -9,10 +9,8 @@ import torch
 import torch.nn as nn
 
 class AdaptiveLinearModel(nn.Module):
-    def __init__(self, n_epochs):
+    def __init__(self):
         super().__init__()
-
-        self.n_epochs = n_epochs
 
         # 1st convolutional layer
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=1,

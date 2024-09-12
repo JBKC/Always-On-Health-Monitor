@@ -60,7 +60,7 @@ class TemporalAttentionModel(nn.Module):
     Full architecture build
     '''
 
-    def __init__(self):
+    def __init__(self,n_epochs):
         super().__init__()
 
         self.conv_block1 = ConvBlock(in_channels=in_channels, n_filters=32, pool_size=4)
@@ -70,7 +70,7 @@ class TemporalAttentionModel(nn.Module):
         self.ln = nn.LayerNorm()
         self.fc1 = nn.Linear()
         self.fc2 = nn.Linear()
-        self.dropout = nn.Dropout()
+        self.dropout = nn.Dropout(p=0.125)
 
 
     def forward(self, input):
