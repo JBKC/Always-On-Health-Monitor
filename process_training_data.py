@@ -202,7 +202,7 @@ def ma_removal(data_dict, sessions):
                 loss.backward()
                 optimizer.step()
 
-                print(f'Session {s}, Batch: [{i + 1}/{idx.size - 1}],'
+                print(f'Session {s}, Batch: [{i + 1}/{idx.size - 1}], '
                       f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
             # subtract the motion artifact estimate from raw signal to extract cleaned BVP

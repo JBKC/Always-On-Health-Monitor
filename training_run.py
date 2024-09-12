@@ -85,6 +85,10 @@ def train_model(dict, sessions):
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
             act_val = np.concatenate([act[j] for j in val_idxs], axis=0)
 
+            # X splits are now shape (total n_windows across included sessions, 1, 256, 2)
+            # we want (1, 1, 256, 2) ie one batch = one session
+
+
             # ***add batching
 
             for epoch in range(n_epochs):
