@@ -104,25 +104,15 @@ def train_model(dict, sessions):
                 # create batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    ## batch norm??
 
                     # model input shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
                     x_cur = X_batch[:,:,:,0]
                     x_prev = X_batch[:,:,:,-1]
 
                     # forward pass x_bvp_i (x_cur) and x_bvp_i-1 (x_prev) through convolutions and then attention block
-                    x_cur, x_prev = model(x_cur, x_prev)
+                    out = model(x_cur, x_prev)
 
 
-                    # # compute loss
-                    # loss = model.loss_func(X_est, y)
-                    # # backprop
-                    # optimizer.zero_grad()
-                    # loss.backward()
-                    # optimizer.step()
-
-                    print(f'Session S{s+1}, Batch: [{1}],'
-                          f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
 
 

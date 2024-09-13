@@ -128,16 +128,16 @@ class TemporalAttentionModel(nn.Module):
         self.convolution = TemporalConvolution()
         self.attention = AttentionModule()
         self.ln = nn.LayerNorm(normalized_shape=n_embd)
-        self.fc1 = nn.Linear(256)
+        self.fc1 = nn.Linear(in_features=1024, out_features=256)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=0.125)
-        self.fc2 = nn.Linear(2)
+        self.fc2 = nn.Linear(in_features=256, out_features=2)
 
     def forward(self, x_cur, x_prev):
         '''
         :param x_cur: shape (batch_size, n_channels, sequence_length)
         :param x_prev: shape (batch_size, n_channels, sequence_length)
-        :return:
+        :return out:
         '''
 
         # temporal convolution
@@ -149,17 +149,12 @@ class TemporalAttentionModel(nn.Module):
         # layer normalisation over embedding dimension
         x = self.ln(x)
 
+        # fully connected layers & dropout
+        x = torch.flatten(x, start_dim=1)
+        x = self.relu(self.fc1(x))
+        out = self.fc2(self.dropout(x))
 
-
-
-        print(x.shape)
-
-        # x_cur = x_cur.flatten()
-        #
-        # x = self.relu(self.fc1(self.ln(x)))
-        # x = self.fc2(self.dropout(x))
-
-        return x
+        return out
 
     def loss_func(self):
         return
