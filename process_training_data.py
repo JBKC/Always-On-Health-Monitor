@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from accelerometer_cnn import AdaptiveLinearModel
+import generate_adversarial_dataset
 
 
 def save_data(s, data_dict):
