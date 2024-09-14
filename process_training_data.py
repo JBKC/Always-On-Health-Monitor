@@ -270,7 +270,7 @@ def main():
     # save_dict(sessions)
     data_dict = load_dict()
 
-    # pass accelerometer data through CNN
+    # pass accelerometer data through CNN & save down new filtered data
     ma_removal(data_dict, sessions)
 
 
