@@ -11,21 +11,27 @@ import numpy as np
 def generate_noise(dict, sessions):
     '''
     Generate noise dataset by filtering original PPG Dalia data
-    :param dict:
-    :return:
+    :param dict: original data dict, each session of shape (n_windows, n_channels, n_samples)
     '''
 
     fs = 32
     n_taps = 81  # number of filter coefficients
     tol = 2.5  # tolerance for bandstop around HR
 
+    noise_dict = {f'{session}': {} for session in sessions}
+
     for s in sessions:
 
         print(f'Generating for Session {s}')
 
         X = dict[s]['ppg']          # shape (n_windows, n_channels, n_samples)
-        y = dict[s]['label']        # shape (n_windows)
-        X_noise = np.zeros(X.shape)
+        y = dict[s]['label']        # shape (n_windows,)
+
+        X_noise = np.zeros(X.shape)                                       # generate noise signal
+        y_noise = np.random.uniform(low=20, high=300, size=y.shape)       # assign random ground truths
+
+        noise_dict[s]['y_noise'] = y_noise
+
 
         # iterate over values in first column of X (n_windows)
         for i in tqdm(range(X.shape[0])):
@@ -47,11 +53,17 @@ def generate_noise(dict, sessions):
             b = scipy.signal.firwin(n_taps, [low, high], fs=fs, pass_zero="bandpass")
             y3 = scipy.signal.filtfilt(b, 1, X[i, :, :])
 
-            X_noise[i, :] = X[i, :] - (y1 + y2 + y3)
+            X_noise[i, :, :] = X[i, :, :] - (y1 + y2 + y3)
 
+        noise_dict[s]['x_noise'] = X_noise
 
+    # save dictionary
+    with open('noise_dict', 'wb') as file:
+        pickle.dump(noise_dict, file)
+    print(f'Data dictionary saved to noise_dict')
 
-            # TEST BY PLOTTING BEFORE AND AFTER
+    return
+
 
 def main():
 
@@ -69,8 +81,6 @@ def main():
     data_dict = load_dict(filename='ppg_dalia_dict')
 
     generate_noise(data_dict, sessions)
-
-
 
     return
 
