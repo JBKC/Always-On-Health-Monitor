@@ -10,7 +10,6 @@ from temporal_attention_model import TemporalAttentionModel
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from torch.distributions import Normal
 
 
 def temporal_pairs(dict, sessions):
@@ -46,9 +45,8 @@ def temporal_pairs(dict, sessions):
 def train_model(dict, sessions):
     '''
     Create Leave One Session Out split and run through model
-    :param dict:
-    :param sessions:
-    :return:
+    :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
+    :param sessions: list of session names
     '''
 
     def NLL(dist, y):
@@ -63,6 +61,7 @@ def train_model(dict, sessions):
 
     # initialise model
     n_epochs = 500
+    patience = 10               # early stopping parameter
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
 
@@ -74,13 +73,44 @@ def train_model(dict, sessions):
     x, y, act = temporal_pairs(dict, sessions)
 
     # LOSO splits
-    ids = shuffle(list(range(15)))                  # index each session
+    ids = shuffle(list(range(len(sessions))))       # index each session
     splits = np.array_split(ids, n_splits)
+
+    # Load checkpoint if available
+    checkpoint_path = '/models/best_temporal_attention_model.pth'
+
+    try:
+        checkpoint = torch.load(checkpoint_path)
+
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        best_val_loss = checkpoint['best_val_loss']
+        counter = checkpoint['counter']
+        splits = checkpoint['splits'],
+        processed_splits = checkpoint['processed_splits']
+        last_split_idx = checkpoint['last_split_idx']
+        last_session = checkpoint['last_session']
+        last_session_idx = checkpoint['last_session_idx']
+        print(f"Checkpoint found, resuming from Split {last_split_idx + 1}, Session {last_session + 1}")
+
+    except FileNotFoundError:
+        print("No checkpoint found, training from scratch")
+        best_val_loss = float('inf')        # early stopping parameter
+        counter = 0                         # early stopping parameter
+        processed_splits = []               # track each split as they are processed
+        last_split_idx = -1
+        last_session_idx = -1
+        epoch = -1
 
     start_time = time.time()
 
     # outer LOSO split for training data
-    for split in splits:
+    for split_idx, split in enumerate(splits):
+
+        # skip already-processed splits
+        if split_idx <= last_split_idx:
+            continue
 
         # set training data (current split = testing/validation data)
         train_idxs = np.array([i for i in ids if i not in split])
@@ -97,7 +127,11 @@ def train_model(dict, sessions):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
         # inner LOSO split for testing & validation data
-        for s in split:
+        for session_idx, s in enumerate(split):
+
+            # skip already-processed sessions in current split
+            if split_idx == last_split_idx and session_idx <= last_session_idx:
+                continue
 
             # set current session to test data
             X_test = x[s]
@@ -115,7 +149,7 @@ def train_model(dict, sessions):
             y_val = torch.tensor(y_val, dtype=torch.float32)
 
             # training loop
-            for epoch in range(n_epochs):
+            for epoch in range(epoch +1, n_epochs):
 
                 model.train()
 
@@ -136,7 +170,7 @@ def train_model(dict, sessions):
                     loss.backward()
                     optimizer.step()
 
-                    print(f'Test session: S{s+1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
+                    print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
                           f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
 
 
@@ -147,16 +181,48 @@ def train_model(dict, sessions):
                     val_dist = model(X_val[:,:,:,0], X_val[:,:,:,-1])
                     val_loss = NLL(val_dist, y_val).mean()          # average validation across all windows
 
-                    print(f'Test session: S{s+1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {val_loss.item():.4f}')
+                    print(f'Test session: S{s + 1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {val_loss.item():.4f}')
 
-            # test on held-out session
+                # early stopping criteria
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    counter = 0
+
+                    # save down checkpoint of current best model state
+                    checkpoint = {
+                        'model_state_dict': model.state_dict(),  # model weights
+                        'optimizer_state_dict': optimizer.state_dict(),  # optimizer state
+                        'epoch': epoch,  # save the current epoch
+                        'best_val_loss': best_val_loss,  # the best validation loss
+                        'counter': counter,  # early stopping counter
+                        'splits': splits,  # training splits
+                        'processed_splits': processed_splits,  # track which splits have already been processed
+                        'last_split_idx': split_idx,  # the index of the last split
+                        'last_session': s,  # the last session in the current split
+                        'last_session_idx': session_idx,  # the index of the last session in the current split
+                    }
+                    torch.save(checkpoint, checkpoint_path)
+
+                else:
+                    counter += 1
+                    if counter >= patience:
+                        print("EARLY STOPPING - onto next split")
+                        break
+
+            # test on held-out session after all epochs complete
             with torch.no_grad():
                 test_dist = model(X_test[:,:,:,0], X_test[:,:,:,-1])
                 test_loss = NLL(test_dist, y_test).mean()
-                print(f'Test session: S{s+1}, Test Loss: {test_loss.item():.4f}')
+                print(f'Test session: S{s + 1}, Test Loss: {test_loss.item():.4f}')
+
+        # mark current split as processed
+        processed_splits.append(split_idx)
+        print(f"Split {split_idx + 1} processed.")
 
     end_time = time.time()
     print("TRAINING COMPLETE: time ", (end_time - start_time) / 3600, " hours.")
+
+    return
 
 
 
@@ -175,9 +241,6 @@ def main():
     # load dictionary
     dict = load_dict()
     train_model(dict, sessions)
-
-
-
 
 
 if __name__ == '__main__':
