@@ -51,6 +51,16 @@ def train_model(dict, sessions):
     :return:
     '''
 
+    def NLL(dist, y):
+        '''
+        Negative log likelihood loss of observation y, given distribution dist
+        :param dist: predicted Gaussian distribution
+        :param y: ground truth label
+        :return: NLL
+        '''
+
+        return -dist.log_prob(y)
+
     # initialise model
     n_epochs = 500
     batch_size = 256            # number of windows to be processed together
@@ -104,12 +114,17 @@ def train_model(dict, sessions):
                 # create batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    # model input shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
+                    # prep data for model input - shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
                     x_cur = X_batch[:,:,:,0]
                     x_prev = X_batch[:,:,:,-1]
 
-                    # forward pass x_bvp_i (x_cur) and x_bvp_i-1 (x_prev) through convolutions and then attention block
-                    output = model(x_cur, x_prev)
+                    # forward pass through model (convolutions + attention + probabilistic)
+                    dist = model(x_cur, x_prev)
+
+                    # calculate loss on distribution
+                    loss = NLL(dist, y_batch).mean()
+                    loss.backward()
+                    optimizer.step()
 
                     print(f'Test session: S{s}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
                           f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')

@@ -152,7 +152,7 @@ class TemporalAttentionModel(nn.Module):
         '''
         :param x_cur: shape (batch_size, n_channels, sequence_length)
         :param x_prev: shape (batch_size, n_channels, sequence_length)
-        :return out: holds mu and stdev for each window in the batch - shape (batch_size, 2)
+        :return out: probability distribution over output
         '''
 
         # temporal convolution
@@ -174,8 +174,6 @@ class TemporalAttentionModel(nn.Module):
 
         return out
 
-    def loss_func(self):
-        return
 
 
 
