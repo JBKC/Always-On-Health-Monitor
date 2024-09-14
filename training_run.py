@@ -56,7 +56,7 @@ def train_model(dict, sessions):
         Negative log likelihood loss of observation y, given distribution dist
         :param dist: predicted Gaussian distribution
         :param y: ground truth label
-        :return: NLL
+        :return: NLL for each window
         '''
 
         return -dist.log_prob(y)
@@ -78,6 +78,8 @@ def train_model(dict, sessions):
     splits = np.array_split(ids, n_splits)
 
     start_time = time.time()
+
+    # outer LOSO split for training data
     for split in splits:
 
         # set training data (current split = testing/validation data)
@@ -94,7 +96,7 @@ def train_model(dict, sessions):
         train_dataset = TensorDataset(X_train, y_train)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-        # create inner LOSO split to get testing & validation split
+        # inner LOSO split for testing & validation data
         for s in split:
 
             # set current session to test data
@@ -108,11 +110,19 @@ def train_model(dict, sessions):
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
             act_val = np.concatenate([act[j] for j in val_idxs], axis=0)
 
+            # convert to torch tensors
+            X_val = torch.tensor(X_val, dtype=torch.float32)
+            y_val = torch.tensor(y_val, dtype=torch.float32)
+
             # training loop
             for epoch in range(n_epochs):
 
-                # create batches of windows to pass through model
+                model.train()
+
+                # create training batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
+
+                    optimizer.zero_grad()
 
                     # prep data for model input - shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
                     x_cur = X_batch[:,:,:,0]
@@ -121,16 +131,32 @@ def train_model(dict, sessions):
                     # forward pass through model (convolutions + attention + probabilistic)
                     dist = model(x_cur, x_prev)
 
-                    # calculate loss on distribution
+                    # calculate training loss on distribution
                     loss = NLL(dist, y_batch).mean()
                     loss.backward()
                     optimizer.step()
 
-                    print(f'Test session: S{s}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
-                          f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
+                    print(f'Test session: S{s+1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
+                          f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
+
+
+                # validation on whole validation set after each epoch
+                model.eval()
+
+                with torch.no_grad():
+                    val_dist = model(X_val[:,:,:,0], X_val[:,:,:,-1])
+                    val_loss = NLL(val_dist, y_val).mean()          # average validation across all windows
+
+                    print(f'Test session: S{s+1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {val_loss.item():.4f}')
+
+            # test on held-out session
+            with torch.no_grad():
+                test_dist = model(X_test[:,:,:,0], X_test[:,:,:,-1])
+                test_loss = NLL(test_dist, y_test).mean()
+                print(f'Test session: S{s+1}, Test Loss: {test_loss.item():.4f}')
 
     end_time = time.time()
-    print("Training complete: time ", (end_time - start_time) / 3600, " hours.")
+    print("TRAINING COMPLETE: time ", (end_time - start_time) / 3600, " hours.")
 
 
 

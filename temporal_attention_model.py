@@ -76,7 +76,7 @@ class TemporalConvolution(nn.Module):
 
     def forward(self, x_cur, x_prev):
         '''
-        Pass both x_cur and x_prev through the same convolution blocks (weight sharing)
+        Pass x_cur and x_prev in parallel through the same convolution blocks (weight sharing)
         :param x_cur, x_prev: shape (batch_size, n_channels, sequence_length)
         :return x_cur, x_prev: shape (batch_size, n_filters, embed_dim)
         '''
