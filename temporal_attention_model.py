@@ -5,6 +5,8 @@ Model combining convolution of time window batches & attention across adjacent t
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Normal
+
 
 class ConvBlock(nn.Module):
     '''
@@ -133,11 +135,24 @@ class TemporalAttentionModel(nn.Module):
         self.dropout = nn.Dropout(p=0.125)
         self.fc2 = nn.Linear(in_features=256, out_features=2)
 
+    def gaussian(self, x):
+        '''
+        :param x: estimated mu and standard deviation of HR for each window - shape (batch_size, 2)
+        :return: Gaussian distribution of given inputs
+        '''
+
+        mu = x[:, 0]
+        sigma = x[:, -1]
+        sigma = 1 + F.softplus(sigma)
+
+        return Normal(loc=mu, scale=sigma)
+
+
     def forward(self, x_cur, x_prev):
         '''
         :param x_cur: shape (batch_size, n_channels, sequence_length)
         :param x_prev: shape (batch_size, n_channels, sequence_length)
-        :return out:
+        :return out: holds mu and stdev for each window in the batch - shape (batch_size, 2)
         '''
 
         # temporal convolution
@@ -152,7 +167,10 @@ class TemporalAttentionModel(nn.Module):
         # fully connected layers & dropout
         x = torch.flatten(x, start_dim=1)
         x = self.relu(self.fc1(x))
-        out = self.fc2(self.dropout(x))
+        x = self.fc2(self.dropout(x))
+
+        # pass through probabilistic layer
+        out = self.gaussian(x)
 
         return out
 

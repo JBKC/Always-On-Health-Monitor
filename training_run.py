@@ -6,11 +6,11 @@ import numpy as np
 import pickle
 from sklearn.utils import shuffle
 import time
-from temporal_attention_model import TemporalConvolution, TemporalAttentionModel
+from temporal_attention_model import TemporalAttentionModel
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-
+from torch.distributions import Normal
 
 
 def temporal_pairs(dict, sessions):
@@ -104,15 +104,18 @@ def train_model(dict, sessions):
                 # create batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-
                     # model input shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
                     x_cur = X_batch[:,:,:,0]
                     x_prev = X_batch[:,:,:,-1]
 
                     # forward pass x_bvp_i (x_cur) and x_bvp_i-1 (x_prev) through convolutions and then attention block
-                    out = model(x_cur, x_prev)
+                    output = model(x_cur, x_prev)
 
+                    print(f'Test session: S{s}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
+                          f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
+    end_time = time.time()
+    print("Training complete: time ", (end_time - start_time) / 3600, " hours.")
 
 
 
