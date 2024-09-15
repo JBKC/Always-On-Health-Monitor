@@ -1,5 +1,5 @@
 '''
-Generate adversarial dataset consisting of noise from original PGG signals + random ground labels
+Generate adversarial dataset consisting of noise from original PGG signals matched to random ground labels
 '''
 
 import pickle
