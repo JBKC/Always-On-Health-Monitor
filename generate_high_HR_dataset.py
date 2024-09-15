@@ -13,27 +13,29 @@ class GenerateFullDataset(Dataset):
     def __init__(self, X, y, X_noise, y_noise, batch_size, ratio_sampling=0.5):
         '''
         __init__ is run when instance of class is created
-        :param X:
-        :param y:
-        :param X_noise:
-        :param y_noise:
-        :param ratio_sampling:
+        :param X: training data across all sessions in training split, shape (n_windows, 1, 256, 2)
+            where the final dimension is (x_cur, x_prev)
+        :param y: training labels, shape (n_windows,)
+        :param X_noise: noise data, shape (n_windows, 1, 256, 2)
+        :param y_noise: noise labels data, shape (n_windows,)
+        :param batch_size: size of each training batch
+        :param ratio_sampling: % of total noise data windows to randomly sample
         '''
 
-        # convert input data into torch
-        self.X_in = torch.from_numpy(X).float()
+        # convert input data into torch (and remove channel dimension)
+        self.X_in = torch.from_numpy(X).float().squeeze(dim=1)
         self.y_in = torch.from_numpy(y).float()
 
-        print(self.X_in.shape)
-
-        self.X_noise_in = torch.from_numpy(X_noise).float()
+        self.X_noise_in = torch.from_numpy(X_noise).float().squeeze(dim=1)
         self.y_noise_in = torch.from_numpy(y_noise).float()
 
+        self.batch_size = batch_size
         self.ratio_sampling = ratio_sampling        # % of random samples taken from adversarial dataset
-        self.fs = 32
+        self.freq_bin = 32 / 256                    # fs / n_samples
 
+        # execute class functions
         self.create_sped()
-        self.setup_clean_indexes()
+        self.find_clean_idxs()
         self.combine_datasets()
         self.shuffle_dataset()
 
@@ -46,30 +48,46 @@ class GenerateFullDataset(Dataset):
         return self.X_out.shape[0]
 
     def create_sped(self):
-        
-        # create artificially sped up signal, by offsetting (for added variation) -> combining -> downsampling
-        self.X_sped = torch.cat([self.X_in[:-4, ...], self.X_in[4:, ...]], dim=1)[:, ::2, :]
+        '''
+        Artificially speed up every signal in X_in
+        done by concatenating 2 parts of the signal together, then downsampling by a factor of 2
+        '''
+
+        offset = 4              # temporal offset
+
+        # combine current window with an offset window
+        self.X_sped = torch.cat([self.X_in[offset:,:,:], self.X_in[:-offset,:,:]], dim=1)
+        # downsample to get double effective frequency
+        self.X_sped = self.X_sped[:,::2,:]
+
         # align labels
-        self.y_sped = 2 * self.y_in[:-4]
+        self.y_sped = 2 * self.y_in[:-offset]
 
         # only keep windows that have sped up HR < 300bpm
         mask = self.y_sped.flatten() < 300
         self.X_sped = self.X_sped[mask]
         self.y_sped = self.y_sped[mask]
 
-    def setup_clean_indexes(self):
-        # find "clean" PPG windows - ie ones where the dominant frequency closely matches the ground truth label
+    def find_clean_idxs(self):
+        '''
+        find which sped up windows can be considered "clean"
+        ie. ones where the dominant frequency closely matches the ground truth label
+        '''
 
-        # get FFT
-        fft_sped = torch.abs(torch.fft.fft(self.X_sped[:, 0, :]))[:,:128].T
-        # get dominant frequency & convert to Hz
-        freq_dom = torch.argmax(fft_sped, dim=0) * 7.5
+        tol = 10                    # tolerance for considering a sped up signal as "clean"
+
+        # get FFT of x_cur - gives shape (128, n_windows)
+        fft_sped = torch.abs(torch.fft.fft(self.X_sped[:, :, 0]))[:,:int(self.X_sped.shape[1]/2)].T
+        # get dominant frequency bin & convert to BPM
+        freq_dom = torch.argmax(fft_sped, dim=0) * self.freq_bin * 60
 
         # get indices of windows with "clean" signals
-        self.clean_indexes = torch.where(torch.abs(freq_dom.flatten() - self.y_sped.flatten()) < 10)[0]
+        self.clean_idxs = torch.where(torch.abs(freq_dom - self.y_sped) < tol)[0]
 
     def combine_datasets(self):
-        # combine all 3 datasets to create the final dataset
+        '''
+        Combine original X, X_noise and X_highhr to create final dataset
+        '''
 
         # calculate number of random samples to take
         n_random_samples = int(self.ratio_sampling * self.y_in.size)
@@ -78,8 +96,8 @@ class GenerateFullDataset(Dataset):
         idxs = np.random.choice(idxs, size = n_random_samples)
 
         # extract random samples from high HR dataset
-        X_highhr = self.X_sped[self.clean_indexes.flatten()]
-        y_highhr = self.y_sped[self.clean_indexes.flatten()]
+        X_highhr = self.X_sped[self.clean_idxs.flatten()]
+        y_highhr = self.y_sped[self.clean_idxs.flatten()]
 
         # concatenate all datasets together
         self.X_out = torch.cat([self.X_in, self.X_noise_in[idxs], X_highhr], dim=0)
