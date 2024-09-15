@@ -10,7 +10,7 @@ import time
 from temporal_attention_model import TemporalAttentionModel
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 from generate_high_HR_dataset import GenerateFullDataset
 
 def temporal_pairs(dict, sessions):
@@ -18,7 +18,7 @@ def temporal_pairs(dict, sessions):
     Create temporal pairs between adjacent windows for all data
     :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
     :param sessions: list of session names
-    :return x_all: temporal pairs of each session as a list of length n_sessions - each entry shape (n_windows, 1, 256, 2)
+    :return x_all: temporal pairs of each session as a list of length n_sessions - each entry shape (n_windows, 256, 2)
     :return y_all: ground truth HR labels as a list of length n_sessions
     :return act_all: activity labels as a list of length n_sessions
     '''
@@ -29,12 +29,12 @@ def temporal_pairs(dict, sessions):
 
     for s in sessions:
 
-        x = dict[s]['bvp']
+        x = dict[s]['bvp'].squeeze(axis=1)
 
         # pair adjacent windows (i, i-1)
         x_pairs = (np.expand_dims(x[1:,:],axis=-1) , np.expand_dims(x[:-1,:],axis=-1))
         x_pairs = np.concatenate(x_pairs,axis=-1)
-        # results in concatenated pairs of shape (n_windows, 1, n_samples, 2)
+        # results in concatenated pairs of shape (n_windows, n_samples, 2)
 
         x_all.append(x_pairs)
         y_all.append(dict[s]['label'][1:])
@@ -124,6 +124,11 @@ def train_model(dict, noise_dict, sessions):
         X_noise_train = np.concatenate([x_noise[i] for i in train_idxs], axis=0)
         y_noise_train = np.concatenate([y_noise[i] for i in train_idxs], axis=0)
 
+        # create instance of full dataset class
+        X_train_all = GenerateFullDataset(X=X_train, y=y_train, X_noise=X_noise_train, y_noise=y_noise_train)
+        # dataloader for batching
+        train_loader = DataLoader(X_train_all, batch_size=batch_size, shuffle=True)
+
         # inner LOSO split for testing & validation data
         for session_idx, s in enumerate(split):
 
@@ -150,21 +155,14 @@ def train_model(dict, noise_dict, sessions):
             for epoch in range(epoch +1, n_epochs):
                 model.train()
 
-                # combine datasets for training
-                X_train, y_train = GenerateFullDataset(X_train, y_train, X_noise_train, y_noise_train, batch_size=batch_size)
-
-                # create TensorDataset and DataLoader for batching
-                train_dataset = TensorDataset(X_train, y_train)
-                train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
                 # create training batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
                     optimizer.zero_grad()
 
                     # prep data for model input - shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
-                    x_cur = X_batch[:,:,:,0]
-                    x_prev = X_batch[:,:,:,-1]
+                    x_cur = X_batch[:, :, 0].unsqueeze(1)
+                    x_prev = X_batch[:, :, 1].unsqueeze(1)
 
                     # forward pass through model (convolutions + attention + probabilistic)
                     dist = model(x_cur, x_prev)

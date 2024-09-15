@@ -1,6 +1,7 @@
 '''
 Generate dataset with artificially sped up samples to help model predict high HR cases
 Combine this dataset with the noise dataset (from generate_adversarial_dataset) and original data to form the final dataset
+Uses torch Dataset to automatically create batches
 '''
 
 import torch
@@ -10,26 +11,24 @@ from sklearn.utils import shuffle
 
 
 class GenerateFullDataset(Dataset):
-    def __init__(self, X, y, X_noise, y_noise, batch_size, ratio_sampling=0.5):
+    def __init__(self, X, y, X_noise, y_noise, ratio_sampling=0.2):
         '''
         __init__ is run when instance of class is created
-        :param X: training data across all sessions in training split, shape (n_windows, 1, 256, 2)
+        :param X: training data across all sessions in training split, shape (n_windows, 256, 2)
             where the final dimension is (x_cur, x_prev)
         :param y: training labels, shape (n_windows,)
-        :param X_noise: noise data, shape (n_windows, 1, 256, 2)
+        :param X_noise: noise data, shape (n_windows, 256, 2)
         :param y_noise: noise labels data, shape (n_windows,)
-        :param batch_size: size of each training batch
         :param ratio_sampling: % of total noise data windows to randomly sample
         '''
 
-        # convert input data into torch (and remove channel dimension)
-        self.X_in = torch.from_numpy(X).float().squeeze(dim=1)
+        # convert input data into torch
+        self.X_in = torch.from_numpy(X).float()
         self.y_in = torch.from_numpy(y).float()
 
-        self.X_noise_in = torch.from_numpy(X_noise).float().squeeze(dim=1)
+        self.X_noise_in = torch.from_numpy(X_noise).float()
         self.y_noise_in = torch.from_numpy(y_noise).float()
 
-        self.batch_size = batch_size
         self.n_random_samples = int(ratio_sampling * self.y_in.shape[0])
         self.freq_bin = 32 / 256                    # fs / n_samples per window
 
@@ -44,7 +43,7 @@ class GenerateFullDataset(Dataset):
         return self.X_out[index], self.y_out[index]
 
     def __len__(self):
-        # returns total number of windows
+        # returns total number of windows in dataset
         return self.X_out.shape[0]
 
     def create_sped(self):
@@ -54,7 +53,6 @@ class GenerateFullDataset(Dataset):
         '''
 
         offset = 4              # window offset
-
         # combine current window with an offset window
         self.X_sped = torch.cat([self.X_in[offset:,:,:], self.X_in[:-offset,:,:]], dim=1)
         # downsample to get double effective frequency
@@ -109,6 +107,6 @@ class GenerateFullDataset(Dataset):
         self.X_out = self.X_out[perm]
         self.y_out = self.y_out[perm]
 
-        print(self.X_out.shape)
+        print(f'All Training Data Shape: {self.X_out.shape}')
 
 
