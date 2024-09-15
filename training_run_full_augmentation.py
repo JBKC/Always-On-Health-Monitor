@@ -1,6 +1,6 @@
 '''
 Main script for training temporal attention model
-Combines original x_BVP PPG Dalia dataset with adversarial examples & high HR examples
+Full training dataset combines original x_BVP PPG Dalia dataset with adversarial examples & high HR examples
 '''
 
 import numpy as np
@@ -11,7 +11,7 @@ from temporal_attention_model import TemporalAttentionModel
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-
+from generate_high_HR_dataset import GenerateFullDataset
 
 def temporal_pairs(dict, sessions):
     '''
@@ -40,13 +40,13 @@ def temporal_pairs(dict, sessions):
         y_all.append(dict[s]['label'][1:])
         act_all.append(dict[s]['activity'][1:])
 
-
     return x_all, y_all, act_all
 
-def train_model(dict, sessions):
+def train_model(dict, noise_dict, sessions):
     '''
     Create Leave One Session Out split and run through model
     :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
+    :param dict: dictionary of adversarial noise data - each session shape (n_windows, n_channels, n_samples)
     :param sessions: list of session names
     '''
 
@@ -70,8 +70,9 @@ def train_model(dict, sessions):
     model = TemporalAttentionModel()
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
-    # create temporal pairs of time windows
+    # create temporal pairs of time windows for both original data and noise data
     x, y, act = temporal_pairs(dict, sessions)
+    x_noise, y_noise, _ = temporal_pairs(noise_dict, sessions)
 
     # LOSO splits
     ids = shuffle(list(range(len(sessions))))       # index each session
@@ -115,17 +116,13 @@ def train_model(dict, sessions):
 
         # set training data (current split = testing/validation data)
         train_idxs = np.array([i for i in ids if i not in split])
+
         X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
         y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
         act_train = np.concatenate([act[i] for i in train_idxs], axis=0)
 
-        # convert to torch tensor
-        X_train = torch.tensor(X_train, dtype=torch.float32)
-        y_train = torch.tensor(y_train, dtype=torch.float32)
-
-        # create TensorDataset and DataLoader for batching
-        train_dataset = TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        X_noise_train = np.concatenate([x_noise[i] for i in train_idxs], axis=0)
+        y_noise_train = np.concatenate([y_noise[i] for i in train_idxs], axis=0)
 
         # inner LOSO split for testing & validation data
         for session_idx, s in enumerate(split):
@@ -134,7 +131,7 @@ def train_model(dict, sessions):
             if split_idx == last_split_idx and session_idx <= last_session_idx:
                 continue
 
-            # set current session to test data
+            # set current session's original data to test data
             X_test = x[s]
             y_test = y[s]
             act_test = act[s]
@@ -151,8 +148,14 @@ def train_model(dict, sessions):
 
             # training loop
             for epoch in range(epoch +1, n_epochs):
-
                 model.train()
+
+                # combine datasets for training
+                X_train, y_train = GenerateFullDataset(X_train, y_train, X_noise_train, y_noise_train, batch_size=batch_size)
+
+                # create TensorDataset and DataLoader for batching
+                train_dataset = TensorDataset(X_train, y_train)
+                train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
                 # create training batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
@@ -229,7 +232,7 @@ def train_model(dict, sessions):
 
 def main():
 
-    def load_dict(filename='ppg_filt_dict'):
+    def load_dict(filename):
 
         with open(filename, 'rb') as file:
             data_dict = pickle.load(file)
@@ -239,9 +242,11 @@ def main():
 
     sessions = [f'S{i}' for i in range(1, 16)]
 
-    # load dictionary
-    dict = load_dict()
-    train_model(dict, sessions)
+    # load original & adversarial data
+    dict = load_dict(filename='ppg_filt_dict')
+    noise_dict = load_dict(filename='noise_dict')
+
+    train_model(dict, noise_dict, sessions)
 
 
 if __name__ == '__main__':

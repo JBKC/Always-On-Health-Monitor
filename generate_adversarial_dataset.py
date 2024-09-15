@@ -1,5 +1,6 @@
 '''
 Generate adversarial dataset consisting of noise from original PGG signals matched to random ground labels
+Run this script directly to save down noise dictionary
 '''
 
 import pickle
@@ -27,11 +28,12 @@ def generate_noise(dict, sessions):
         X = dict[s]['ppg']          # shape (n_windows, n_channels, n_samples)
         y = dict[s]['label']        # shape (n_windows,)
 
+
         X_noise = np.zeros(X.shape)                                       # generate noise signal
         y_noise = np.random.uniform(low=20, high=300, size=y.shape)       # assign random ground truths
 
-        noise_dict[s]['y_noise'] = y_noise
-
+        noise_dict[s]['label'] = y_noise
+        noise_dict[s]['activity'] = dict[s]['activity']
 
         # iterate over values in first column of X (n_windows)
         for i in tqdm(range(X.shape[0])):
@@ -55,7 +57,7 @@ def generate_noise(dict, sessions):
 
             X_noise[i, :, :] = X[i, :, :] - (y1 + y2 + y3)
 
-        noise_dict[s]['x_noise'] = X_noise
+        noise_dict[s]['bvp'] = X_noise              # technically 'ppg' or 'x_noise', but used 'bvp' for consistency with original data
 
     # save dictionary
     with open('noise_dict', 'wb') as file:

@@ -1,6 +1,6 @@
 '''
 Generate dataset with artificially sped up samples to help model predict high HR cases
-Combine this dataset with the original & noise datasets to form the final dataset
+Combine this dataset with the noise dataset (from generate_adversarial_dataset) and original data to form the final dataset
 '''
 
 import torch
@@ -10,7 +10,7 @@ from sklearn.utils import shuffle
 
 
 class GenerateFullDataset(Dataset):
-    def __init__(self, X, y, X_noise, y_noise, ratio_sampling=0.5):
+    def __init__(self, X, y, X_noise, y_noise, batch_size, ratio_sampling=0.5):
         '''
         __init__ is run when instance of class is created
         :param X:
@@ -23,6 +23,8 @@ class GenerateFullDataset(Dataset):
         # convert input data into torch
         self.X_in = torch.from_numpy(X).float()
         self.y_in = torch.from_numpy(y).float()
+
+        print(self.X_in.shape)
 
         self.X_noise_in = torch.from_numpy(X_noise).float()
         self.y_noise_in = torch.from_numpy(y_noise).float()
@@ -70,17 +72,18 @@ class GenerateFullDataset(Dataset):
         # combine all 3 datasets to create the final dataset
 
         # calculate number of random samples to take
-        n_random_samples = int(self.ratio_sampling * self.y_in.size(0))
+        n_random_samples = int(self.ratio_sampling * self.y_in.size)
         # get indices for adversarial dataset
-        indexes = torch.randperm(self.y_noise_in.size(0))[:n_random_samples]
+        idxs = np.arange(self.y_noise_in.size)
+        idxs = np.random.choice(idxs, size = n_random_samples)
 
         # extract random samples from high HR dataset
         X_highhr = self.X_sped[self.clean_indexes.flatten()]
         y_highhr = self.y_sped[self.clean_indexes.flatten()]
 
         # concatenate all datasets together
-        self.X_out = torch.cat([self.X_in, self.X_noise_in[indexes], X_highhr], dim=0)
-        self.y_out = torch.cat([self.y_in, self.y_noise_in[indexes], y_highhr], dim=0)
+        self.X_out = torch.cat([self.X_in, self.X_noise_in[idxs], X_highhr], dim=0)
+        self.y_out = torch.cat([self.y_in, self.y_noise_in[idxs], y_highhr], dim=0)
 
 
     def shuffle_dataset(self):
