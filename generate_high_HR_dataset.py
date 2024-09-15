@@ -30,17 +30,17 @@ class GenerateFullDataset(Dataset):
         self.y_noise_in = torch.from_numpy(y_noise).float()
 
         self.batch_size = batch_size
-        self.ratio_sampling = ratio_sampling        # % of random samples taken from adversarial dataset
-        self.freq_bin = 32 / 256                    # fs / n_samples
+        self.n_random_samples = int(ratio_sampling * self.y_in.shape[0])
+        self.freq_bin = 32 / 256                    # fs / n_samples per window
 
-        # execute class functions
+        # execute methods
         self.create_sped()
         self.find_clean_idxs()
         self.combine_datasets()
         self.shuffle_dataset()
 
     def __getitem__(self, index):
-        # returns a single window & corresponding label from dataset at given index
+        # fetches values of X training data and y labels at a single index
         return self.X_out[index], self.y_out[index]
 
     def __len__(self):
@@ -53,7 +53,7 @@ class GenerateFullDataset(Dataset):
         done by concatenating 2 parts of the signal together, then downsampling by a factor of 2
         '''
 
-        offset = 4              # temporal offset
+        offset = 4              # window offset
 
         # combine current window with an offset window
         self.X_sped = torch.cat([self.X_in[offset:,:,:], self.X_in[:-offset,:,:]], dim=1)
@@ -72,6 +72,7 @@ class GenerateFullDataset(Dataset):
         '''
         find which sped up windows can be considered "clean"
         ie. ones where the dominant frequency closely matches the ground truth label
+        this is the final list of high HR examples
         '''
 
         tol = 10                    # tolerance for considering a sped up signal as "clean"
@@ -89,13 +90,11 @@ class GenerateFullDataset(Dataset):
         Combine original X, X_noise and X_highhr to create final dataset
         '''
 
-        # calculate number of random samples to take
-        n_random_samples = int(self.ratio_sampling * self.y_in.size)
-        # get indices for adversarial dataset
-        idxs = np.arange(self.y_noise_in.size)
-        idxs = np.random.choice(idxs, size = n_random_samples)
+        # get indices to pull random data from adversarial dataset
+        idxs = np.arange(self.y_noise_in.shape[0])
+        idxs = np.random.choice(idxs, size=self.n_random_samples)
 
-        # extract random samples from high HR dataset
+        # pull clean high HR examples
         X_highhr = self.X_sped[self.clean_idxs.flatten()]
         y_highhr = self.y_sped[self.clean_idxs.flatten()]
 
@@ -103,17 +102,13 @@ class GenerateFullDataset(Dataset):
         self.X_out = torch.cat([self.X_in, self.X_noise_in[idxs], X_highhr], dim=0)
         self.y_out = torch.cat([self.y_in, self.y_noise_in[idxs], y_highhr], dim=0)
 
-
     def shuffle_dataset(self):
         # shuffle dataset randomly
 
-        perm = torch.randperm(self.X_out.size(0))
+        perm = torch.randperm(self.X_out.shape[0])
         self.X_out = self.X_out[perm]
         self.y_out = self.y_out[perm]
 
-    def on_epoch_end(self):
-        # regenerate the random y_noise labels after each epoch
+        print(self.X_out.shape)
 
-        self.y_noise_in = torch.from_numpy(np.random.uniform(low=20, high=300, size=(self.X_noise_in.shape[0], 1))).float()
-        self.combine_datasets()
-        self.shuffle_dataset()
+
