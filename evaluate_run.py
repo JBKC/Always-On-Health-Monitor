@@ -65,7 +65,6 @@ def evaluate_model(dict, sessions):
     nll_e = []
     error_vs_std = []
 
-    model = TemporalAttentionModel()
     x, y, act = temporal_pairs(dict, sessions)
 
     for s in range(0,15):
@@ -87,8 +86,8 @@ def evaluate_model(dict, sessions):
         y_test = y[s]
         act_test = act[s]
 
-
-
+        # build model for each session's weights
+        model = TemporalAttentionModel()
 
 
     return

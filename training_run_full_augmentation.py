@@ -75,41 +75,14 @@ def train_model(dict, noise_dict, sessions):
     ids = shuffle(list(range(len(sessions))))       # index each session
     splits = np.array_split(ids, n_splits)
 
-    # Load checkpoint if available
-    checkpoint_path = '/models/best_temporal_attention_model.pth'
-
-    try:
-        checkpoint = torch.load(checkpoint_path)
-
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint['epoch']
-        best_val_loss = checkpoint['best_val_loss']
-        counter = checkpoint['counter']
-        splits = checkpoint['splits'],
-        processed_splits = checkpoint['processed_splits']
-        last_split_idx = checkpoint['last_split_idx']
-        last_session = checkpoint['last_session']
-        last_session_idx = checkpoint['last_session_idx']
-        print(f"Checkpoint found, resuming from Split {last_split_idx + 1}, Session {last_session + 1}")
-
-    except FileNotFoundError:
-        print("No checkpoint found, training from scratch")
-        best_val_loss = float('inf')        # early stopping parameter
-        counter = 0                         # early stopping parameter
-        processed_splits = []               # track each split as they are processed
-        last_split_idx = -1
-        last_session_idx = -1
-        epoch = -1
-
     start_time = time.time()
 
     # outer LOSO split for training data
     for split_idx, split in enumerate(splits):
 
-        # skip already-processed splits
-        if split_idx <= last_split_idx:
-            continue
+        # # skip already-processed splits
+        # if split_idx <= last_split_idx:
+        #     continue
 
         # set training data (current split = testing/validation data)
         train_idxs = np.array([i for i in ids if i not in split])
@@ -129,9 +102,9 @@ def train_model(dict, noise_dict, sessions):
         # inner LOSO split for testing & validation data
         for session_idx, s in enumerate(split):
 
-            # skip already-processed sessions in current split
-            if split_idx == last_split_idx and session_idx <= last_session_idx:
-                continue
+            # # skip already-processed sessions in current split
+            # if split_idx == last_split_idx and session_idx <= last_session_idx:
+            #     continue
 
             # set current session's original data to test data
             X_test = x[s]
@@ -148,9 +121,36 @@ def train_model(dict, noise_dict, sessions):
             X_val = torch.tensor(X_val, dtype=torch.float32)
             y_val = torch.tensor(y_val, dtype=torch.float32)
             
-            ### create model instance at this level - separate model trained for each test session
+            ### create model instance at this level = separate model trained for each test session
             model = TemporalAttentionModel()
             optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+
+            # Load checkpoint if available
+            checkpoint_path = f'/models/temporal_attention_model_session_S{s+1}.pth'
+
+            try:
+                checkpoint = torch.load(checkpoint_path)
+
+                model.load_state_dict(checkpoint['model_state_dict'])
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                epoch = checkpoint['epoch']
+                best_val_loss = checkpoint['best_val_loss']
+                counter = checkpoint['counter']
+                splits = checkpoint['splits'],
+                processed_splits = checkpoint['processed_splits']
+                last_split_idx = checkpoint['last_split_idx']
+                last_session = checkpoint['last_session']
+                last_session_idx = checkpoint['last_session_idx']
+                print(f"Checkpoint found, resuming from Split {last_split_idx + 1}, Session {last_session + 1}")
+
+            except FileNotFoundError:
+                print("No checkpoint found, training from scratch")
+                best_val_loss = float('inf')  # early stopping parameter
+                counter = 0  # early stopping parameter
+                processed_splits = []  # track each split as they are processed
+                last_split_idx = -1
+                last_session_idx = -1
+                epoch = -1
 
             # training loop
             for epoch in range(epoch +1, n_epochs):
