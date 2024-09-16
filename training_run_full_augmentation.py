@@ -1,6 +1,7 @@
 '''
 Main script for training temporal attention model
 Full training dataset combines original x_BVP PPG Dalia dataset with adversarial examples & high HR examples
+*** separate model trained for each session ***
 '''
 
 import numpy as np
@@ -65,10 +66,6 @@ def train_model(dict, noise_dict, sessions):
     patience = 10               # early stopping parameter
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
-
-    # create model instance
-    model = TemporalAttentionModel()
-    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create temporal pairs of time windows for both original data and noise data
     x, y, act = temporal_pairs(dict, sessions)
@@ -150,6 +147,10 @@ def train_model(dict, noise_dict, sessions):
             # convert to torch tensors
             X_val = torch.tensor(X_val, dtype=torch.float32)
             y_val = torch.tensor(y_val, dtype=torch.float32)
+            
+            ### create model instance at this level - separate model trained for each test session
+            model = TemporalAttentionModel()
+            optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
             # training loop
             for epoch in range(epoch +1, n_epochs):

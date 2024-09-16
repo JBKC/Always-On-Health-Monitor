@@ -1,5 +1,6 @@
 '''
 Main script for training temporal attention model
+*** model trained across all sessions, rather than separate model for each session ***
 '''
 
 import numpy as np
