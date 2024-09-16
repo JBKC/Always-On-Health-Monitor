@@ -4,7 +4,8 @@ Main script for evaluating temporal attention model
 
 import numpy as np
 import pickle
-from temporal_attention_model import TemporalAttentionModel
+import torch
+from temporal_attention_model import TemporalAttentionModel, SubModel
 
 
 def temporal_pairs(dict, sessions):
@@ -86,8 +87,23 @@ def evaluate_model(dict, sessions):
         y_test = y[s]
         act_test = act[s]
 
-        # build model for each session's weights
-        model = TemporalAttentionModel()
+        ## implement error classifaction on raw (pre-probabilistic) model outputs
+
+        # create submodel that excludes last layer
+        submodel = SubModel()
+
+        # load trained model for corresponding session
+        checkpoint_path = f'/models/temporal_attention_model_session_S{s + 1}.pth'
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+
+        submodel_dict = submodel.state_dict()
+
+
+
+
+
 
 
     return
