@@ -142,7 +142,9 @@ def evaluate_model(dict, sessions):
         pct_dropped = np.argwhere(y_pred_std < std_threshold).size / y_test.size
         pcts_dropped.append(pct_dropped)
 
-        # loss
+        # get error for activity prediction
+        for act in np.unique(act_test):
+            
 
 
 
