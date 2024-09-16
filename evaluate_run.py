@@ -91,18 +91,25 @@ def evaluate_model(dict, sessions):
 
         # create submodel that excludes last layer
         submodel = SubModel()
+        submodel_state_dict = submodel.state_dict()
 
         # load trained model for corresponding session
-        checkpoint_path = f'/models/temporal_attention_model_session_S{s + 1}.pth'
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        try:
+            checkpoint_path = f'/models/temporal_attention_model_session_S{s+1}.pth'
+            checkpoint = torch.load(checkpoint_path)
+            state_dict = checkpoint['model_state_dict']
+        except FileNotFoundError:
+            print(f'No pretrained model found for Session S{s+1}')
+            break
 
+        # instantiate submodel with pretrained weights
+        state_dict = {k: v for k, v in state_dict.items() if k in submodel_state_dict}
+        submodel.load_state_dict(state_dict)
 
-        submodel_dict = submodel.state_dict()
-
-
-
-
+        # evaluate on submodel
+        submodel.eval()
+        with torch.no_grad():
+            y_pred = submodel(X_validate)
 
 
 

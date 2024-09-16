@@ -163,7 +163,7 @@ def train_model(dict, noise_dict, sessions):
 
                     # prep data for model input - shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
                     x_cur = X_batch[:, :, 0].unsqueeze(1)
-                    x_prev = X_batch[:, :, 1].unsqueeze(1)
+                    x_prev = X_batch[:, :, -1].unsqueeze(1)
 
                     # forward pass through model (convolutions + attention + probabilistic)
                     dist = model(x_cur, x_prev)
@@ -181,7 +181,7 @@ def train_model(dict, noise_dict, sessions):
                 model.eval()
 
                 with torch.no_grad():
-                    val_dist = model(X_val[:,:,:,0], X_val[:,:,:,-1])
+                    val_dist = model(X_val[:,:,0], X_val[:,:,-1])
                     val_loss = NLL(val_dist, y_val).mean()          # average validation across all windows
 
                     print(f'Test session: S{s + 1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {val_loss.item():.4f}')
