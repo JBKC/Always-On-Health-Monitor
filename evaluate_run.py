@@ -5,6 +5,7 @@ Main script for evaluating temporal attention model
 import numpy as np
 import pickle
 import torch
+import torch.nn.functional as F
 from temporal_attention_model import TemporalAttentionModel, SubModel
 
 
@@ -53,16 +54,18 @@ def evaluate_model(dict, sessions):
         '''
         return -dist.log_prob(y)
 
-    n_epochs = 500
-    batch_size = 256
+    std_threshold = 5
+
+    n_epochs = 200
+    batch_size = 128
 
     # evaluate error stats
-    overall_errors = []
-    overall_errors_std_thr = []
+    error_abs = []
+    error_std_thr = []
     activity_errors = np.empty((15, 9))
     activity_errors[:] = np.nan
 
-    percentages_dropped = []
+    pcts_dropped = []                       # percentages dropped
     nll_e = []
     error_vs_std = []
 
@@ -89,10 +92,6 @@ def evaluate_model(dict, sessions):
 
         ## implement error classifaction on raw (pre-probabilistic) model outputs
 
-        # create submodel that excludes last layer
-        submodel = SubModel()
-        submodel_state_dict = submodel.state_dict()
-
         # load trained model for corresponding session
         try:
             checkpoint_path = f'/models/temporal_attention_model_session_S{s+1}.pth'
@@ -102,14 +101,50 @@ def evaluate_model(dict, sessions):
             print(f'No pretrained model found for Session S{s+1}')
             break
 
+        # instantiate model with pretrained weights
+        model = TemporalAttentionModel()
+        model.load_state_dict(state_dict)
+
+        # create submodel that excludes last layer
+        submodel = SubModel()
+        submodel_state_dict = submodel.state_dict()
+
         # instantiate submodel with pretrained weights
         state_dict = {k: v for k, v in state_dict.items() if k in submodel_state_dict}
         submodel.load_state_dict(state_dict)
 
         # evaluate on submodel
+        model.eval()
         submodel.eval()
+
         with torch.no_grad():
-            y_pred = submodel(X_validate)
+            x_cur = X_test[:, :, 0].unsqueeze(1)
+            x_prev = X_test[:, :, -1].unsqueeze(1)
+            y_pred = submodel(x_cur, x_prev)
+
+            # calculate loss of prediction against probabilistic output
+            loss = NLL(y_test, model(x_cur, x_prev)).numpy()
+            loss = np.diagonal(loss)
+
+            nll_e.append(loss.mean())
+
+        # extract mean and stdev predictions
+        y_pred_m = y_pred[:,0]
+        y_pred_std = 1 + F.softplus(y_pred[:,-1])
+
+        # get absolute error between prediction and ground truth
+        error = np.mean(np.abs(y_pred_m - y_test))
+        error_abs.append(error)
+
+        error_thr = np.mean(np.abs(y_pred_m[y_pred_std < std_threshold] - y_test[y_pred_std < std_threshold]))
+        error_std_thr.append(error_thr)
+
+        pct_dropped = np.argwhere(y_pred_std < std_threshold).size / y_test.size
+        pcts_dropped.append(pct_dropped)
+
+        # loss
+
+
 
 
 

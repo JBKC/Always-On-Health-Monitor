@@ -11,7 +11,7 @@ from sklearn.utils import shuffle
 
 
 class GenerateFullDataset(Dataset):
-    def __init__(self, X, y, X_noise, y_noise, ratio_sampling=0.2):
+    def __init__(self, X, y, X_noise, y_noise, ratio_sampling=0.1):
         '''
         __init__ is run when instance of class is created
         :param X: training data across all sessions in training split, shape (n_windows, 256, 2)
