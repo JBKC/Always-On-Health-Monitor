@@ -4,13 +4,8 @@ Main script for evaluating temporal attention model
 
 import numpy as np
 import pickle
-from sklearn.utils import shuffle
-import time
 from temporal_attention_model import TemporalAttentionModel
-import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from generate_high_HR_dataset import GenerateFullDataset
+
 
 def temporal_pairs(dict, sessions):
     '''
@@ -42,6 +37,60 @@ def temporal_pairs(dict, sessions):
     return x_all, y_all, act_all
 
 def evaluate_model(dict, sessions):
+    '''
+    ....
+    :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
+    :param sessions: list of session names
+    '''
+
+    def NLL(dist, y):
+        '''
+        Negative log likelihood loss of observation y, given distribution dist
+        :param dist: predicted Gaussian distribution
+        :param y: ground truth label
+        :return: NLL for each window
+        '''
+        return -dist.log_prob(y)
+
+    n_epochs = 500
+    batch_size = 256
+
+    # evaluate error stats
+    overall_errors = []
+    overall_errors_std_thr = []
+    activity_errors = np.empty((15, 9))
+    activity_errors[:] = np.nan
+
+    percentages_dropped = []
+    nll_e = []
+    error_vs_std = []
+
+    model = TemporalAttentionModel()
+    x, y, act = temporal_pairs(dict, sessions)
+
+    for s in range(0,15):
+
+        n_epochs = 100
+        batch_size = 256
+        n_ch = 2
+        patience = 150
+
+        fs = 32
+
+        # create simple train/test split
+        train_idxs = np.array([i for i in range(0,15) if i!=s])
+
+        X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
+        y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
+
+        X_test = x[s]
+        y_test = y[s]
+        act_test = act[s]
+
+
+
+
+
     return
 
 
