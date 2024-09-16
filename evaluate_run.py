@@ -65,8 +65,8 @@ def evaluate_model(dict, sessions):
     activity_errors = np.empty((15, 9))
     activity_errors[:] = np.nan
 
-    pcts_dropped = []                       # percentages dropped
     nll_e = []
+    pcts_kept = []                       # percentage of low uncertainty (desirable) predictions
     error_vs_std = []
 
     x, y, act = temporal_pairs(dict, sessions)
@@ -119,27 +119,23 @@ def evaluate_model(dict, sessions):
             x_cur = X_test[:, :, 0].unsqueeze(1)
             x_prev = X_test[:, :, -1].unsqueeze(1)
 
-            # calculate standard loss of trained model against ground truth & average across all windows
+            # calculate loss of probabilistic model against ground truth (average across all windows)
             loss = NLL(model(x_cur, x_prev), y_test)
             nll_e.append(loss.mean())
 
-            # calculate loss of submodel without probabilistic element
+            # calculate absolute error of submodel (mean vs. ground truth)
             y_pred = submodel(x_cur, x_prev)
             y_pred_m = y_pred[:,0]                              # mean
             y_pred_std = 1 + F.softplus(y_pred[:,-1])           # standard deviation
+            error = np.mean(np.abs(y_pred_m - y_test))
+            error_abs.append(error)
 
-        # get absolute error between prediction and ground truth
-        error = np.mean(np.abs(y_pred_m - y_test))
-        error_abs.append(error)
-
-        error_thr = np.mean(np.abs(y_pred_m[y_pred_std < std_threshold] - y_test[y_pred_std < std_threshold]))
-        error_std_thr.append(error_thr)
-
-        pct_dropped = np.argwhere(y_pred_std < std_threshold).size / y_test.size
-        pcts_dropped.append(pct_dropped)
-
-        # get error for activity prediction
-        # for act in np.unique(act_test):
+            # calculate absolute error of submodel for low uncertainty predictions
+            error_thr = np.mean(np.abs(y_pred_m[y_pred_std < std_threshold] - y_test[y_pred_std < std_threshold]))
+            error_std_thr.append(error_thr)
+            # record how many low uncertainty predictions there are as a % of all predictions
+            pct_kept = np.argwhere(y_pred_std < std_threshold).size / y_test.size
+            pcts_kept.append(pct_kept)
 
 
 
