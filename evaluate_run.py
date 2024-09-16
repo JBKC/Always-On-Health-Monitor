@@ -119,23 +119,31 @@ def evaluate_model(dict, sessions):
             x_cur = X_test[:, :, 0].unsqueeze(1)
             x_prev = X_test[:, :, -1].unsqueeze(1)
 
-            # calculate loss of probabilistic model against ground truth (average across all windows)
+            # 1. calculate loss of probabilistic model against ground truth (average across all windows)
             loss = NLL(model(x_cur, x_prev), y_test)
             nll_e.append(loss.mean())
 
-            # calculate absolute error of submodel (mean vs. ground truth)
+            # 2. calculate absolute error of submodel (mean vs. ground truth)
             y_pred = submodel(x_cur, x_prev)
             y_pred_m = y_pred[:,0]                              # mean
             y_pred_std = 1 + F.softplus(y_pred[:,-1])           # standard deviation
             error = np.mean(np.abs(y_pred_m - y_test))
             error_abs.append(error)
 
-            # calculate absolute error of submodel for low uncertainty predictions
+            # 3. calculate absolute error of submodel for low uncertainty predictions
             error_thr = np.mean(np.abs(y_pred_m[y_pred_std < std_threshold] - y_test[y_pred_std < std_threshold]))
             error_std_thr.append(error_thr)
-            # record how many low uncertainty predictions there are as a % of all predictions
+
+            # 4. record how many low uncertainty predictions there are as a % of all predictions
             pct_kept = np.argwhere(y_pred_std < std_threshold).size / y_test.size
             pcts_kept.append(pct_kept)
+
+            # 5. get individual errors for each activity
+            for act in np.unique(act_test):
+                error = np.mean(np.abs(y_pred_m[act_test == act] - y_test[act_test == act]))
+                activity_errors[s, int(act)] = error
+
+            # 6. 
 
 
 
