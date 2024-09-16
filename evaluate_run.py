@@ -1,9 +1,10 @@
 '''
-Main script for evaluating temporal attention model
+Main script for calculating error metrics of temporal attention model
 '''
 
 import numpy as np
 import pickle
+import os
 import torch
 import torch.nn.functional as F
 from temporal_attention_model import TemporalAttentionModel, SubModel
@@ -54,41 +55,20 @@ def evaluate_model(dict, sessions):
         '''
         return -dist.log_prob(y)
 
-    std_threshold = 5
 
-    n_epochs = 200
-    batch_size = 128
+    eval_dict = {f'{session}': {} for session in sessions}
 
-    # evaluate error stats
-    error_abs = []
-    error_std_thr = []
-    activity_errors = np.empty((15, 9))
-    activity_errors[:] = np.nan
+    std_thr = 5                             # threshold for submodel_error_thr and pcts_kept
 
-    nll_e = []
-    pcts_kept = []                       # percentage of low uncertainty (desirable) predictions
-    error_vs_std = []
-
+    # create temporal pairs for model
     x, y, act = temporal_pairs(dict, sessions)
 
-    for s in range(0,15):
+    for s, session in enumerate(sessions):
 
-        n_epochs = 100
-        batch_size = 256
-        n_ch = 2
-        patience = 150
-
-        fs = 32
-
-        # create simple train/test split
-        train_idxs = np.array([i for i in range(0,15) if i!=s])
-        X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
-        y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
-
+        # create simple test split
         X_test = torch.from_numpy(x[s]).float()
         y_test = torch.from_numpy(y[s]).float()
         act_test = torch.from_numpy(act[s]).float()
-
 
         # load trained model for corresponding session
         try:
@@ -120,36 +100,41 @@ def evaluate_model(dict, sessions):
             x_prev = X_test[:, :, -1].unsqueeze(1)
 
             # 1. calculate loss of probabilistic model against ground truth (average across all windows)
-            loss = NLL(model(x_cur, x_prev), y_test)
-            nll_e.append(loss.mean())
+            model_loss = NLL(model(x_cur, x_prev), y_test).mean()
+            eval_dict[session]['model_loss'] = model_loss
 
             # 2. calculate absolute error of submodel (mean vs. ground truth)
             y_pred = submodel(x_cur, x_prev)
             y_pred_m = y_pred[:,0]                              # mean
             y_pred_std = 1 + F.softplus(y_pred[:,-1])           # standard deviation
-            error = np.mean(np.abs(y_pred_m - y_test))
-            error_abs.append(error)
+            submodel_error = np.mean(np.abs(y_pred_m - y_test))
+            eval_dict[session]['submodel_error'] = submodel_error
 
             # 3. calculate absolute error of submodel for low uncertainty predictions
-            error_thr = np.mean(np.abs(y_pred_m[y_pred_std < std_threshold] - y_test[y_pred_std < std_threshold]))
-            error_std_thr.append(error_thr)
+            submodel_error_thr = np.mean(np.abs(y_pred_m[y_pred_std < std_thr] - y_test[y_pred_std < std_thr]))
+            eval_dict[session]['submodel_error_thr'] = submodel_error_thr
 
             # 4. record how many low uncertainty predictions there are as a % of all predictions
-            pct_kept = np.argwhere(y_pred_std < std_threshold).size / y_test.size
-            pcts_kept.append(pct_kept)
+            pct_kept = np.argwhere(y_pred_std < std_thr).size / y_test.size
+            eval_dict[session]['pct_kept'] = pct_kept
 
-            # 5. get individual errors for each activity
+            # 5. repeat low uncertainty analysis for a range of thresholds
+            error_vs_thr = []
+            for thr in np.arange(1, 10, 0.5):
+                error_vs_thr.append(np.mean(np.abs(y_pred_m[y_pred_std < thr] - y_test[y_pred_std < thr])))
+            eval_dict[session]['error_vs_thr'] = error_vs_thr
+
+            # 6. get individual errors for each activity
+            activity_error = []
             for act in np.unique(act_test):
-                error = np.mean(np.abs(y_pred_m[act_test == act] - y_test[act_test == act]))
-                activity_errors[s, int(act)] = error
+                activity_error = np.mean(np.abs(y_pred_m[act_test == act] - y_test[act_test == act]))
+            eval_dict[session]['activity_error'] = activity_error
 
-            # 6. 
-
-
-
-
-
-
+    # save dictionary
+    output_path = f'./evaluation_results/temporal_attention_model_full_augment/'
+    with open(output_path, 'wb') as file:
+        pickle.dump(eval_dict, file)
+    print(f'Data dictionary saved to {output_path}')
 
     return
 
