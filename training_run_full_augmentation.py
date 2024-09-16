@@ -120,6 +120,8 @@ def train_model(dict, noise_dict, sessions):
             # convert to torch tensors
             X_val = torch.tensor(X_val, dtype=torch.float32)
             y_val = torch.tensor(y_val, dtype=torch.float32)
+            X_test = torch.tensor(X_test, dtype=torch.float32)
+            y_test = torch.tensor(y_test, dtype=torch.float32)
             
             ### create model instance at this level = separate model trained for each test session
             model = TemporalAttentionModel()
@@ -181,7 +183,7 @@ def train_model(dict, noise_dict, sessions):
                 model.eval()
 
                 with torch.no_grad():
-                    val_dist = model(X_val[:,:,0], X_val[:,:,-1])
+                    val_dist = model(X_val[:,:,0].unsqueeze(1), X_val[:,:,-1].unsqueeze(1))
                     val_loss = NLL(val_dist, y_val).mean()          # average validation across all windows
 
                     print(f'Test session: S{s + 1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {val_loss.item():.4f}')
@@ -214,7 +216,7 @@ def train_model(dict, noise_dict, sessions):
 
             # test on held-out session after all epochs complete
             with torch.no_grad():
-                test_dist = model(X_test[:,:,:,0], X_test[:,:,:,-1])
+                test_dist = model(X_test[:,:,:,0].unsqueeze(1), X_test[:,:,:,-1].unsqueeze(1))
                 test_loss = NLL(test_dist, y_test).mean()
                 print(f'Test session: S{s + 1}, Test Loss: {test_loss.item():.4f}')
 
