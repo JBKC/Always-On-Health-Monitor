@@ -82,15 +82,13 @@ def evaluate_model(dict, sessions):
 
         # create simple train/test split
         train_idxs = np.array([i for i in range(0,15) if i!=s])
-
         X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
         y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
 
-        X_test = x[s]
-        y_test = y[s]
-        act_test = act[s]
+        X_test = torch.from_numpy(x[s]).float()
+        y_test = torch.from_numpy(y[s]).float()
+        act_test = torch.from_numpy(act[s]).float()
 
-        ## implement error classifaction on raw (pre-probabilistic) model outputs
 
         # load trained model for corresponding session
         try:
@@ -106,33 +104,29 @@ def evaluate_model(dict, sessions):
         model = TemporalAttentionModel()
         state_dict = {k: v for k, v in state_dict.items() if k in state_dict}
         model.load_state_dict(state_dict)
+        model.eval()
 
-        # create submodel that excludes last layer
+        # instantiate submodel (that excludes final layer) with pretrained weights
         submodel = SubModel()
         submodel_state_dict = submodel.state_dict()
-
-        # instantiate submodel with pretrained weights
         state_dict = {k: v for k, v in state_dict.items() if k in submodel_state_dict}
         submodel.load_state_dict(state_dict)
-
-        # evaluate on submodel
-        model.eval()
         submodel.eval()
 
+        # ** perform evaluation - calculate various error metrics **
+
         with torch.no_grad():
-            x_cur = torch.from_numpy(X_test[:, :, 0]).float().unsqueeze(1)
-            x_prev = torch.from_numpy(X_test[:, :, -1]).float().unsqueeze(1)
-            y_pred = submodel(x_cur, x_prev)
+            x_cur = X_test[:, :, 0].unsqueeze(1)
+            x_prev = X_test[:, :, -1].unsqueeze(1)
 
-            # calculate loss of prediction against probabilistic output
-            loss = NLL(y_test, model(x_cur, x_prev)).numpy()
-            loss = np.diagonal(loss)
-
+            # calculate standard loss of trained model against ground truth & average across all windows
+            loss = NLL(model(x_cur, x_prev), y_test)
             nll_e.append(loss.mean())
 
-        # extract mean and stdev predictions
-        y_pred_m = y_pred[:,0]
-        y_pred_std = 1 + F.softplus(y_pred[:,-1])
+            # calculate loss of submodel without probabilistic element
+            y_pred = submodel(x_cur, x_prev)
+            y_pred_m = y_pred[:,0]                              # mean
+            y_pred_std = 1 + F.softplus(y_pred[:,-1])           # standard deviation
 
         # get absolute error between prediction and ground truth
         error = np.mean(np.abs(y_pred_m - y_test))
@@ -146,6 +140,7 @@ def evaluate_model(dict, sessions):
 
         # get error for activity prediction
         # for act in np.unique(act_test):
+
 
 
 

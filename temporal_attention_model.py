@@ -118,33 +118,6 @@ class AttentionModule(nn.Module):
 
         return out
 
-class SubModel(nn.Module):
-    '''
-    Excludes final probability layer
-    Used for error classifier
-    '''
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x_cur, x_prev):
-        # temporal convolution
-        x_cur, x_prev = self.convolution(x_cur, x_prev)
-
-        # attention with residual connection: query = x_prev, key = value = x_cur
-        x = x_cur + self.attention(x_prev, x_cur, x_cur)
-
-        # layer normalisation over embedding dimension
-        x = self.ln(x)
-
-        # fully connected layers & dropout
-        x = torch.flatten(x, start_dim=1)
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-
-        return x
-
-
 
 class TemporalAttentionModel(nn.Module):
     '''
@@ -202,6 +175,32 @@ class TemporalAttentionModel(nn.Module):
         return out
 
 
+
+class SubModel(TemporalAttentionModel):
+    '''
+    Inherit from TemporalAttentionModel but exclude final probability layer
+    Used for error classifier
+    '''
+
+    def __init__(self, n_embd=16):
+        super().__init__(n_embd)
+
+    def forward(self, x_cur, x_prev):
+        # temporal convolution
+        x_cur, x_prev = self.convolution(x_cur, x_prev)
+
+        # attention with residual connection: query = x_prev, key = value = x_cur
+        x = x_cur + self.attention(x_prev, x_cur, x_cur)
+
+        # layer normalisation over embedding dimension
+        x = self.ln(x)
+
+        # fully connected layers & dropout
+        x = torch.flatten(x, start_dim=1)
+        x = self.relu(self.fc1(x))
+        x = self.dropout(x)
+
+        return x
 
 
 
