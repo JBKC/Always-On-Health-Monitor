@@ -42,8 +42,8 @@ class ConvBlock(nn.Module):
     def forward(self, x):
         '''
         Pass data through the convolution block
-        :param x:
-        :return:
+        :param x: shape (batch_size, n_channels, sequence_length)
+        :return x: shape (batch_size, 64, 16)
         '''
 
         for conv in self.conv_layers:
