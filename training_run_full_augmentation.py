@@ -126,7 +126,7 @@ def train_model(dict, noise_dict, sessions):
             optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
             # Load checkpoint if available
-            checkpoint_path = f'/models/temporal_attention_model_session_S{s+1}.pth'
+            checkpoint_path = f'./models/temporal_attention_model_session_S{s+1}.pth'
 
             try:
                 checkpoint = torch.load(checkpoint_path)

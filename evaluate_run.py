@@ -94,7 +94,8 @@ def evaluate_model(dict, sessions):
 
         # load trained model for corresponding session
         try:
-            checkpoint_path = f'/models/temporal_attention_model_session_S{s+1}.pth'
+            # checkpoint_path = f'./models/temporal_attention_model_session_S{s+1}.pth'
+            checkpoint_path = f'./dummy_models/temporal_attention_model_session_S{s + 1}.pth'
             checkpoint = torch.load(checkpoint_path)
             state_dict = checkpoint['model_state_dict']
         except FileNotFoundError:
@@ -103,6 +104,7 @@ def evaluate_model(dict, sessions):
 
         # instantiate model with pretrained weights
         model = TemporalAttentionModel()
+        state_dict = {k: v for k, v in state_dict.items() if k in state_dict}
         model.load_state_dict(state_dict)
 
         # create submodel that excludes last layer
@@ -118,8 +120,8 @@ def evaluate_model(dict, sessions):
         submodel.eval()
 
         with torch.no_grad():
-            x_cur = X_test[:, :, 0].unsqueeze(1)
-            x_prev = X_test[:, :, -1].unsqueeze(1)
+            x_cur = torch.from_numpy(X_test[:, :, 0]).float().unsqueeze(1)
+            x_prev = torch.from_numpy(X_test[:, :, -1]).float().unsqueeze(1)
             y_pred = submodel(x_cur, x_prev)
 
             # calculate loss of prediction against probabilistic output
@@ -143,8 +145,8 @@ def evaluate_model(dict, sessions):
         pcts_dropped.append(pct_dropped)
 
         # get error for activity prediction
-        for act in np.unique(act_test):
-            
+        # for act in np.unique(act_test):
+
 
 
 
