@@ -139,15 +139,17 @@ def evaluate_model(dict, sessions):
             eval_dict[session]['activity_error'] = activity_error
             print(activity_error)
 
-
     # save dictionary
-    output_path = f'./evaluation_results/temporal_attention_model_full_augment/'
+    output_dir = (f'./evaluation_results/')
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_path = os.path.join(output_dir, 'temporal_attention_model_full_augment_eval_dict.pkl')
+
     with open(output_path, 'wb') as file:
         pickle.dump(eval_dict, file)
     print(f'Data dictionary saved to {output_path}')
 
     return
-
 
 
 def main():
