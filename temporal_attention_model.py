@@ -100,11 +100,11 @@ class AttentionModule(nn.Module):
     Input is the output of the convolutional blocks
     '''
 
-    def __init__(self, n_embd=16, num_heads=4):
+    def __init__(self, n_embd=16, n_heads=4):
         super().__init__()
 
         # single attention module
-        self.attention = nn.MultiheadAttention(embed_dim=n_embd, num_heads=num_heads, batch_first=True)
+        self.attention = nn.MultiheadAttention(embed_dim=n_embd, num_heads=n_heads, batch_first=True)
 
     def forward(self, query, key, value):
         '''
@@ -114,7 +114,7 @@ class AttentionModule(nn.Module):
         :return: output of the attention formula
         '''
 
-        out, _ = self.attention(query, key, value)
+        out, _ = self.attention(query=query, key=key, value=value)
 
         return out
 
