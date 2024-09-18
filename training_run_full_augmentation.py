@@ -216,7 +216,7 @@ def train_model(dict, noise_dict, sessions):
 
             # test on held-out session after all epochs complete
             with torch.no_grad():
-                test_dist = model(X_test[:,:,:,0].unsqueeze(1), X_test[:,:,:,-1].unsqueeze(1))
+                test_dist = model(X_test[:,:,0].unsqueeze(1), X_test[:,:,-1].unsqueeze(1))
                 test_loss = NLL(test_dist, y_test).mean()
                 print(f'Test session: S{s + 1}, Test Loss: {test_loss.item():.4f}')
 
