@@ -8,6 +8,7 @@ import os
 import torch
 import torch.nn.functional as F
 from temporal_attention_model import TemporalAttentionModel, SubModel
+from torch.distributions import Normal
 
 
 def temporal_pairs(dict, sessions):
@@ -58,6 +59,7 @@ def evaluate_model(dict, sessions):
 
     eval_dict = {f'{session}': {} for session in sessions}
 
+    mean_thr = 10                           # threshold for error classification outlined in KID-PPG
     std_thr = 2                             # threshold for submodel_error_thr and pcts_kept
 
     # create temporal pairs for model
@@ -106,25 +108,33 @@ def evaluate_model(dict, sessions):
             eval_dict[session]['model_loss'] = model_loss
             print(model_loss)
 
-            # 2. calculate absolute error of submodel (mean vs. ground truth)
+            # 2. find probability that submodel mean lies within a threshold on the predicted distribution
             y_pred = submodel(x_cur, x_prev)
             y_pred_m = y_pred[:,0]                              # mean
             y_pred_std = 1 + F.softplus(y_pred[:,-1])           # standard deviation
+            dist = Normal(loc=y_pred_m, scale=y_pred_std)
+            upper = dist.cdf(y_pred_m + mean_thr)
+            lower = dist.cdf(y_pred_m - mean_thr)
+            p_error = (upper - lower).mean().item()
+            eval_dict[session]['p_error'] = p_error
+            print(p_error)
+
+            # 3. calculate absolute error of submodel (mean vs. ground truth)
             submodel_error = np.mean(np.abs(y_pred_m - y_test).numpy())
             eval_dict[session]['submodel_error'] = submodel_error
             print(submodel_error)
 
-            # 3. calculate absolute error of submodel for low uncertainty predictions
+            # 4. calculate absolute error of submodel for low uncertainty predictions
             submodel_error_thr = np.mean(np.abs(y_pred_m[y_pred_std < std_thr] - y_test[y_pred_std < std_thr]).numpy())
             eval_dict[session]['submodel_error_thr'] = submodel_error_thr
             print(submodel_error_thr)
 
-            # 4. record how many low uncertainty predictions there are as a % of all predictions
+            # 5. record how many low uncertainty predictions there are as a % of all predictions
             pct_kept = np.mean(y_pred_std.numpy() < std_thr)
             eval_dict[session]['pct_kept'] = pct_kept
             print(pct_kept)
 
-            # 5. repeat low uncertainty analysis for a range of thresholds
+            # 6. repeat low uncertainty analysis for a range of thresholds
             error_vs_thr = {}
             for thr in np.arange(1, 3, 0.1):
                 thr = round(thr, 1)
@@ -132,7 +142,7 @@ def evaluate_model(dict, sessions):
             eval_dict[session]['error_vs_thr'] = error_vs_thr
             print(error_vs_thr)
 
-            # 6. get individual errors for each activity
+            # 7. get individual errors for each activity
             activity_error = []
             for activity in np.unique(act_test):
                 activity_error = np.mean(np.abs(y_pred_m[act_test == activity] - y_test[act_test == activity]).numpy())
