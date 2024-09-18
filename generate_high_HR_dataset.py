@@ -1,7 +1,7 @@
 '''
 Generate dataset with artificially sped up samples to help model predict high HR cases
 Combine this dataset with the noise dataset (from generate_adversarial_dataset) and original data to form the final dataset
-Uses torch Dataset to automatically create batches
+Uses torch.utils.data Dataset to automatically create batches
 '''
 
 import torch
@@ -62,7 +62,7 @@ class GenerateFullDataset(Dataset):
         self.y_sped = 2 * self.y_in[:-offset]
 
         # only keep windows that have sped up HR < 300bpm
-        mask = self.y_sped.flatten() < 300
+        mask = self.y_sped.flatten() < 250
         self.X_sped = self.X_sped[mask]
         self.y_sped = self.y_sped[mask]
 
@@ -96,12 +96,19 @@ class GenerateFullDataset(Dataset):
         X_highhr = self.X_sped[self.clean_idxs.flatten()]
         y_highhr = self.y_sped[self.clean_idxs.flatten()]
 
+        print(len(self.X_in))
+        print(len(self.X_noise_in[idxs]))
+        print(len(X_highhr))
+
         # concatenate all datasets together
         self.X_out = torch.cat([self.X_in, self.X_noise_in[idxs], X_highhr], dim=0)
         self.y_out = torch.cat([self.y_in, self.y_noise_in[idxs], y_highhr], dim=0)
 
     def shuffle_dataset(self):
-        # shuffle dataset randomly
+        '''
+        Randomly shuffles dataset
+        :return:
+        '''
 
         perm = torch.randperm(self.X_out.shape[0])
         self.X_out = self.X_out[perm]

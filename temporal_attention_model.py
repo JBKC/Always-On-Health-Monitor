@@ -143,7 +143,7 @@ class TemporalAttentionModel(nn.Module):
 
         mu = x[:, 0]
         sigma = x[:, -1]
-        sigma = 1 + F.softplus(sigma)
+        sigma = 0.1 + F.softplus(sigma)
 
         return Normal(loc=mu, scale=sigma)
 

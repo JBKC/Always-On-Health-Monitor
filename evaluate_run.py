@@ -110,8 +110,8 @@ def evaluate_model(dict, sessions):
 
             # 2. find probability that submodel mean lies within a threshold on the predicted distribution
             y_pred = submodel(x_cur, x_prev)
-            y_pred_m = y_pred[:,0]                              # mean
-            y_pred_std = 1 + F.softplus(y_pred[:,-1])           # standard deviation
+            y_pred_m = y_pred[:,0]                                # mean
+            y_pred_std = 0.1 + F.softplus(y_pred[:,-1])           # standard deviation
             dist = Normal(loc=y_pred_m, scale=y_pred_std)
             upper = dist.cdf(y_pred_m + mean_thr)
             lower = dist.cdf(y_pred_m - mean_thr)

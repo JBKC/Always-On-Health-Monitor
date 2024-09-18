@@ -30,7 +30,7 @@ def generate_noise(dict, sessions):
 
 
         X_noise = np.zeros(X.shape)                                       # generate noise signal
-        y_noise = np.random.uniform(low=20, high=300, size=y.shape)       # assign random ground truths
+        y_noise = np.random.uniform(low=40, high=250, size=y.shape)       # assign random ground truths
 
         noise_dict[s]['label'] = y_noise
         noise_dict[s]['activity'] = dict[s]['activity']
