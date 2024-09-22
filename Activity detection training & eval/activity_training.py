@@ -5,6 +5,7 @@ Train model on PPG and accelerometer data to detect activity
 import pickle
 import os
 import numpy as np
+from activity_model import ResNeXtModel
 
 def z_normalise(X):
     '''
@@ -32,8 +33,7 @@ def z_normalise(X):
 def train_model(dict, sessions):
 
 
-
-
+    return
 
 
 def main():
@@ -51,7 +51,9 @@ def main():
 
     sessions = [f'S{i}' for i in range(1, 16)]
 
-    data_dict = load_dict()
+    dict = load_dict()
+    print(dict['S1']['ppg'].shape)
+
     train_model(dict, sessions)
 
 
