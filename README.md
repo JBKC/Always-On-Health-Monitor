@@ -5,7 +5,7 @@ Wrist wearable health monitor that takes sensor inputs and gives various real-ti
 Get good supervised HR estimate by training on the PPG-Dalia dataset, by recreating KID-PPG architecture (2024) - https://arxiv.org/abs/2405.09559
 
 ## STEP 2
-Add in activity detection as in PPG Dalia (walking, sitting etc)
+Add in activity detection as in PPG Dalia (walking, cycling, etc)
 
 ## STEP 3
 Use trained model to run realtime inference using Adafruit PPG and accelerometer sensors
