@@ -4,6 +4,7 @@ Initial file for pulling and processing training data from PPG-DaLiA dataset
 
 import pickle
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import torch
@@ -13,7 +14,7 @@ from accelerometer_cnn import AdaptiveLinearModel
 import generate_adversarial_dataset
 
 
-def save_data(s, data_dict):
+def save_data(s, data_dict, root_dir):
     '''
     Pull raw data from PPG Dalia files and save down to a dictionary
     :param s: session name
@@ -22,7 +23,7 @@ def save_data(s, data_dict):
     '''
 
     # pull raw data
-    with open(f'ppg+dalia/{s}/{s}.pkl', 'rb') as file:
+    with open(f'{root_dir}/ppg+dalia/{s}/{s}.pkl', 'rb') as file:
 
         print(f'saving {s}')
         data = pickle.load(file, encoding='latin1')
@@ -245,12 +246,16 @@ def main():
         # create dictionary to hold all data
         data_dict = {f'{session}': {} for session in sessions}
 
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        filepath = os.path.join(root_dir, filename)
+
         # iterate over sessions
         for session in sessions:
-            data_dict = save_data(session, data_dict)
+            data_dict = save_data(session, data_dict, root_dir)
 
         # save dictionary
-        with open(filename, 'wb') as file:
+
+        with open(filepath, 'wb') as file:
             pickle.dump(data_dict, file)
         print(f'Data dictionary saved to {filename}')
 
@@ -258,7 +263,10 @@ def main():
 
     def load_dict(filename='ppg_dalia_dict'):
 
-        with open(filename, 'rb') as file:
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        filepath = os.path.join(root_dir, filename)
+
+        with open(filepath, 'rb') as file:
             data_dict = pickle.load(file)
             print(f'Data dictionary loaded from {filename}')
 
