@@ -1,5 +1,5 @@
 '''
-Initial file for pulling and normalising windowed PPG, accelerometer and activity data
+Train model on PPG and accelerometer data to detect activity
 '''
 
 import pickle
@@ -29,9 +29,14 @@ def z_normalise(X):
 
     return X_norm
 
+def train_model(dict, sessions):
+
+
+
+
+
 
 def main():
-
 
     def load_dict(filename='ppg_dalia_dict'):
 
@@ -44,9 +49,10 @@ def main():
 
             return data_dict
 
-    data_dict = load_dict()
-    z_normalise =
+    sessions = [f'S{i}' for i in range(1, 16)]
 
+    data_dict = load_dict()
+    train_model(dict, sessions)
 
 
 
