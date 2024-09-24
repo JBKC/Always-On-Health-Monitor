@@ -2,10 +2,15 @@
 Train model on PPG and accelerometer data to detect activity
 '''
 
-import pickle
-import os
 import numpy as np
-from activity_model import ResNeXtModel
+import pickle
+from sklearn.utils import shuffle
+import time
+import os
+import torch
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+from activity_model import AccModel
 
 def z_normalise(X):
     '''
@@ -32,6 +37,62 @@ def z_normalise(X):
 
 def train_model(dict, sessions):
 
+    x = []
+    y = []
+
+    # create lists for training & label data
+    x.extend([dict[session]['acc'] for session in sessions])
+    y.extend([dict[session]['activity'] for session in sessions])
+
+    # initialise model
+    n_epochs = 500
+    patience = 10               # early stopping parameter
+    batch_size = 256            # number of windows to be processed together
+    n_splits = 4
+
+    model = AccModel()
+    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+
+    # create batch splits
+    ids = shuffle(list(range(len(sessions))))       # index each session
+    splits = np.array_split(ids, n_splits)
+
+    start_time = time.time()
+
+    for split_idx, split in enumerate(splits):
+
+        # set training data
+        train_idxs = np.array([i for i in ids if i not in split])
+        X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
+        y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
+
+        X_train = torch.tensor(X_train, dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.float32)
+
+        # create TensorDataset and DataLoader for batching
+        train_dataset = TensorDataset(X_train, y_train)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+        for session_idx, s in enumerate(split):
+
+            # set current session to test data
+            X_test = x[s]
+            y_test = y[s]
+
+            # set validation data
+            val_idxs = np.array([j for j in split if j != s])
+            X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
+            y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
+
+            X_val = torch.tensor(X_val, dtype=torch.float32)
+            y_val = torch.tensor(y_val, dtype=torch.float32)
+
+            # training loop
+            for epoch in range(epoch +1, n_epochs):
+
+                model.train()
+
+
 
     return
 
@@ -52,7 +113,6 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     dict = load_dict()
-    print(dict['S1']['ppg'].shape)
 
     train_model(dict, sessions)
 

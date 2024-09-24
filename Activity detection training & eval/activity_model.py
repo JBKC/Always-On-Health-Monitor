@@ -24,8 +24,10 @@ class ConvBlock(nn.Module):
 
 
 
-class ResNeXtModel(nn.Module):
-
+class AccModel(nn.Module):
+    '''
+    Model architecture that takes only accelerometer channels
+    '''
     def __init__(self):
         super().__init__()
 
