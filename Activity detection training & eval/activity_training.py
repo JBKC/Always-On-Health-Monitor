@@ -8,6 +8,7 @@ from sklearn.utils import shuffle
 import time
 import os
 import torch
+import matplotlib.pyplot as plt
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from activity_model import AccModel
@@ -26,15 +27,11 @@ def fourier(dict, sessions):
     for s in sessions:
 
         X = dict[s]['acc']
-        fft_acc = np.abs(np.fft.fft(X, axis=1))
-        fft_dict[s]['acc'] = fft_acc
+        # take relevant part of FFT
+        fft_acc = np.abs(np.fft.fft(X, axis=-1))
+        fft_dict[s]['acc'] = fft_acc[:,:,1:X.shape[-1]//2+1]
 
         fft_dict[s]['activity'] = dict[s]['activity']
-
-    print(fft_dict['S3']['activity'].shape)
-    print(dict['S3']['activity'].shape)
-    print(fft_dict['S14']['acc'].shape)
-    print(dict['S14']['acc'].shape)
 
     return fft_dict
 
