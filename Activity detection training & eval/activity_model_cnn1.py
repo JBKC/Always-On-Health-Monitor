@@ -51,7 +51,6 @@ class ConvLayers(nn.Module):
 
         super().__init__()
 
-        ## to convert to TCN model
 
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 1),
                                stride=(1,1), padding='same', dilation=1)
