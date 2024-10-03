@@ -27,9 +27,15 @@ def fourier(dict, sessions):
     for s in sessions:
 
         X = dict[s]['acc']
-        # take relevant part of FFT
         fft_acc = np.abs(np.fft.fft(X, axis=-1))
-        fft_dict[s]['acc'] = fft_acc[:,:,1:X.shape[-1]//2+1]
+        # take relevant part of FFT
+        fft_acc = fft_acc[:,:,1:X.shape[-1]//2+1]
+
+        # normalise
+        fft_dict[s]['acc'] = z_normalise(fft_acc)
+
+        # plt.plot(fft_dict[s]['acc'][2000, 0, :])
+        # plt.show()
 
         fft_dict[s]['activity'] = dict[s]['activity']
 
@@ -39,12 +45,9 @@ def fourier(dict, sessions):
 
 def z_normalise(X):
     '''
-    Z-normalises data for all windows, across each channel, using vectorisation
-    :param X: of shape (n_windows, 4, 256)
-    :return:
-        X_norm: of shape (n_windows, 4, 256)
-        ms (means): of shape (n_windows, 4)
-        stds (standard deviations) of shape (n_windows, 4)
+    Z-normalises data for each window across each channel
+    :param X: of shape (n_windows, 3, n_fft)
+    :return X_norm: of shape (n_windows, 3, n_fft)
     '''
 
     # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4)
@@ -146,10 +149,10 @@ def main():
 
     # load time series dictionary
     dict = load_dict()
-
     # convert to frequency domain & normalise
-    dict = z_normalise(fourier(dict, sessions))
+    dict = fourier(dict, sessions)
 
+    # train model
     train_model(dict, sessions)
 
 
