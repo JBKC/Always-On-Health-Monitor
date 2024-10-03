@@ -12,6 +12,34 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from activity_model import AccModel
 
+
+def fourier(dict, sessions):
+    '''
+    Create frequency-domain dictionary for accelerometer only
+    :param dict: time series dictionary
+    :param sessions: list of sessions
+    :return fft_dict: frequency domain dictionary
+    '''
+
+    fft_dict = {f'{session}': {} for session in sessions}
+
+    for s in sessions:
+
+        X = dict[s]['acc']
+        fft_acc = np.abs(np.fft.fft(X, axis=1))
+        fft_dict[s]['acc'] = fft_acc
+
+        fft_dict[s]['activity'] = dict[s]['activity']
+
+    print(fft_dict['S3']['activity'].shape)
+    print(dict['S3']['activity'].shape)
+    print(fft_dict['S14']['acc'].shape)
+    print(dict['S14']['acc'].shape)
+
+    return fft_dict
+
+
+
 def z_normalise(X):
     '''
     Z-normalises data for all windows, across each channel, using vectorisation
@@ -35,6 +63,8 @@ def z_normalise(X):
 
     return X_norm
 
+
+
 def train_model(dict, sessions):
 
     x = []
@@ -50,8 +80,8 @@ def train_model(dict, sessions):
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
 
-    model = AccModel()
-    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    # model = AccModel()
+    # optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create batch splits
     ids = shuffle(list(range(len(sessions))))       # index each session
@@ -79,6 +109,10 @@ def train_model(dict, sessions):
             X_test = x[s]
             y_test = y[s]
 
+            print(y_test)
+            print(y_test.shape)
+            print(X_test.shape)
+
             # set validation data
             val_idxs = np.array([j for j in split if j != s])
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
@@ -86,6 +120,7 @@ def train_model(dict, sessions):
 
             X_val = torch.tensor(X_val, dtype=torch.float32)
             y_val = torch.tensor(y_val, dtype=torch.float32)
+
 
             # training loop
             for epoch in range(epoch +1, n_epochs):
@@ -112,10 +147,13 @@ def main():
 
     sessions = [f'S{i}' for i in range(1, 16)]
 
+    # load time series dictionary
     dict = load_dict()
 
-    train_model(dict, sessions)
+    # convert to frequency domain & normalise
+    dict = z_normalise(fourier(dict, sessions))
 
+    train_model(dict, sessions)
 
 
 
