@@ -64,7 +64,6 @@ def z_normalise(X):
     return X_norm
 
 
-
 def train_model(dict, sessions):
 
     x = []
@@ -80,8 +79,8 @@ def train_model(dict, sessions):
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
 
-    # model = AccModel()
-    # optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    model = AccModel()
+    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create batch splits
     ids = shuffle(list(range(len(sessions))))       # index each session
@@ -95,6 +94,7 @@ def train_model(dict, sessions):
         train_idxs = np.array([i for i in ids if i not in split])
         X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
         y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
+        X_train = np.expand_dims(X_train, axis=-2)      # add height dimension to tensor
 
         X_train = torch.tensor(X_train, dtype=torch.float32)
         y_train = torch.tensor(y_train, dtype=torch.float32)
@@ -108,24 +108,48 @@ def train_model(dict, sessions):
             # set current session to test data
             X_test = x[s]
             y_test = y[s]
+            X_test = np.expand_dims(X_test, axis=-2)
 
-            print(y_test)
-            print(y_test.shape)
-            print(X_test.shape)
+            X_test = torch.tensor(X_test, dtype=torch.float32)
+            y_test = torch.tensor(y_test, dtype=torch.float32)
 
             # set validation data
             val_idxs = np.array([j for j in split if j != s])
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
+            X_val = np.expand_dims(X_val, axis=-2)
 
             X_val = torch.tensor(X_val, dtype=torch.float32)
             y_val = torch.tensor(y_val, dtype=torch.float32)
 
+            # print(X_train.shape)
+            # print(X_val.shape)
+            # print(X_test.shape)
 
             # training loop
-            for epoch in range(epoch +1, n_epochs):
+            for epoch in range(n_epochs):
 
                 model.train()
+
+                # create training batches of windows to pass through model
+                for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
+
+                    ### input shape is (batch_size, n_channels, n_fft, 1) = (256, 3, 128, 1)
+
+                    optimizer.zero_grad()
+                    model(X_batch)
+
+
+                    # # forward pass through model (convolutions + attention + probabilistic)
+                    # dist = model(x_cur, x_prev)
+                    #
+                    # # calculate training loss on distribution
+                    # loss = NLL(dist, y_batch).mean()
+                    # loss.backward()
+                    # optimizer.step()
+                    #
+                    # print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
+                    #       f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
 
 
 

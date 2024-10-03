@@ -8,10 +8,9 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 
 
-
 class ConvBlock(nn.Module):
     '''
-    Single convolution block
+    Repeating convolution block structure
     '''
 
     def __init__(self, in_channels, n_filters, pool_size, kernel_size=5, dropout=0.5):
@@ -43,6 +42,27 @@ class ConvBlock(nn.Module):
 
 
 
+class ConvLayers(nn.Module):
+    '''
+    Simple series of convolution layers
+    '''
+
+    def __init__(self):
+
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 3), padding='same')
+        self.conv2 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 3), padding='same')
+
+    def forward(self, X):
+
+        print(X.shape)
+        X = self.conv1(X)
+        print(X.shape)
+
+        return
+
+
 
 class AccModel(nn.Module):
     '''
@@ -52,12 +72,12 @@ class AccModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.convolution = ConvBlock()
+        self.convolution = ConvLayers()
 
+    def forward(self, X):
 
+        self.convolution(X)
 
-
-    def forward(self, x):
         return
 
 
