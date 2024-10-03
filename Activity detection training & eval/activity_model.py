@@ -51,13 +51,25 @@ class ConvLayers(nn.Module):
 
         super().__init__()
 
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 3), padding='same')
-        self.conv2 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 3), padding='same')
+        ## to convert to TCN model
+
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 1),
+                               stride=(1,1), padding='same', dilation=1)
+
+        self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=(1, 3),
+                               stride=(1,1), padding='same',dilation=2)
+
+        self.pool = nn.MaxPool2d(kernel_size=(1,2))
+
 
     def forward(self, X):
-
         print(X.shape)
-        X = self.conv1(X)
+
+        # fuse channels
+        X = F.relu(self.conv1(X))
+
+        X = F.relu(self.conv2(X))
+        # X = self.pool(X)
         print(X.shape)
 
         return
