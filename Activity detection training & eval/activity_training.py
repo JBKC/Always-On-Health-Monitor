@@ -14,6 +14,29 @@ from torch.utils.data import DataLoader, TensorDataset
 from activity_model_cnn1 import AccModel
 
 
+def extract_activity(dict, sessions):
+    '''
+    Remove transient regions from data - i.e. where there is no activity label
+    '''
+
+    act_dict = {f'{session}': {} for session in sessions}
+
+    for s in sessions:
+
+        y = dict[s]['activity']
+        X = dict[s]['acc']
+
+        # remove transient regions
+        act_idx = np.where(y != 0)[0]
+        y = y[act_idx]
+        X = X[act_idx]
+
+        # add to dictionary
+        act_dict[s]['activity'] = y
+        act_dict[s]['acc'] = X
+
+    return act_dict
+
 def fourier(dict, sessions):
     '''
     Create frequency-domain dictionary for accelerometer only
@@ -40,8 +63,6 @@ def fourier(dict, sessions):
         fft_dict[s]['activity'] = dict[s]['activity']
 
     return fft_dict
-
-
 
 def z_normalise(X):
     '''
@@ -72,6 +93,9 @@ def train_model(dict, sessions):
     # create lists for training & label data
     x.extend([dict[session]['acc'] for session in sessions])
     y.extend([dict[session]['activity'] for session in sessions])
+
+    print(x[0].shape)
+    print(y[0].shape)
 
     # initialise model
     n_epochs = 500
@@ -135,8 +159,6 @@ def train_model(dict, sessions):
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
                     ### input shape is (batch_size, n_channels, n_fft, 1) = (256, 3, 128, 1)
-                    print(X_batch.shape)
-                    print(y_batch.shape)
 
                     optimizer.zero_grad()
                     pred = model(X_batch)
@@ -152,8 +174,6 @@ def train_model(dict, sessions):
                     #
                     # print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
                     #       f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
-
-
 
     return
 
@@ -175,11 +195,15 @@ def main():
 
     # load time series dictionary
     dict = load_dict()
+
+    # ignore transient periods (not assigned an activity)
+    act_dict = extract_activity(dict, sessions)
+
     # convert to frequency domain & normalise
-    dict = fourier(dict, sessions)
+    f_dict = fourier(act_dict, sessions)
 
     # train model
-    train_model(dict, sessions)
+    train_model(f_dict, sessions)
 
 
 

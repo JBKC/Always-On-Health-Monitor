@@ -70,7 +70,6 @@ class ConvLayers(nn.Module):
 
 
     def forward(self, X):
-        print(X.shape)
 
         # fuse channels
         X = F.relu(self.conv1(X))
@@ -103,8 +102,6 @@ class FCN(nn.Module):
     def forward(self, X):
 
         X = self.fc1(X)
-
-        print(X.shape)
 
         return X
 
