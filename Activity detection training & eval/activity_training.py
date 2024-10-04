@@ -97,7 +97,7 @@ def train_model(dict, sessions, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 1
+    n_epochs = 10
     patience = 10               # early stopping parameter
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
