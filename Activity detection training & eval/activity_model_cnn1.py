@@ -1,5 +1,5 @@
 '''
-Model architecture for activity detection
+CNN model architecture, v1
 '''
 
 import torch
@@ -51,12 +51,20 @@ class ConvLayers(nn.Module):
 
         super().__init__()
 
-
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 1),
-                               stride=(1,1), padding='same', dilation=1)
+                               stride=(1,1), padding='same')
 
         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=(1, 3),
+                               stride=(1,1), padding='same')
+
+        self.conv3 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=(1, 3),
                                stride=(1,1), padding='same',dilation=2)
+
+        self.conv4 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(1, 3),
+                               stride=(1, 1), padding='same', dilation=2)
+
+        self.conv5 = nn.Conv2d(in_channels=64, out_channels=16, kernel_size=(1, 3),
+                               stride=(1, 1), padding='same', dilation=2)
 
         self.pool = nn.MaxPool2d(kernel_size=(1,2))
 
@@ -68,10 +76,21 @@ class ConvLayers(nn.Module):
         X = F.relu(self.conv1(X))
 
         X = F.relu(self.conv2(X))
-        # X = self.pool(X)
+        X = self.pool(X)
+
+        X = F.relu(self.conv3(X))
+        X = self.pool(X)
+
+        X = F.relu(self.conv4(X))
+        X = self.pool(X)
+
+        X = F.relu(self.conv5(X))
+
+        X = torch.flatten(X, start_dim=1)
+
         print(X.shape)
 
-        return
+        return X
 
 
 
