@@ -120,9 +120,9 @@ class AccModel(nn.Module):
     def forward(self, X):
 
         X = self.convolution(X)
-        self.linear(X)
+        X = self.linear(X)
 
-        return
+        return X
 
 
 

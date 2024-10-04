@@ -8,6 +8,7 @@ from sklearn.utils import shuffle
 import time
 import os
 import torch
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
@@ -30,6 +31,7 @@ def extract_activity(dict, sessions):
         act_idx = np.where(y != 0)[0]
         y = y[act_idx]
         X = X[act_idx]
+        y = (y-1).astype(int)
 
         # add to dictionary
         act_dict[s]['activity'] = y
@@ -84,8 +86,7 @@ def z_normalise(X):
 
     return X_norm
 
-
-def train_model(dict, sessions):
+def train_model(dict, sessions, num_classes=8):
 
     x = []
     y = []
@@ -93,9 +94,6 @@ def train_model(dict, sessions):
     # create lists for training & label data
     x.extend([dict[session]['acc'] for session in sessions])
     y.extend([dict[session]['activity'] for session in sessions])
-
-    print(x[0].shape)
-    print(y[0].shape)
 
     # initialise model
     n_epochs = 500
@@ -118,10 +116,11 @@ def train_model(dict, sessions):
         train_idxs = np.array([i for i in ids if i not in split])
         X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
         y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
-        X_train = np.expand_dims(X_train, axis=-2)      # add height dimension to tensor
+        X_train = np.expand_dims(X_train, axis=-2)                          # add height dimension to tensor
 
         X_train = torch.tensor(X_train, dtype=torch.float32)
-        y_train = torch.tensor(y_train, dtype=torch.float32)
+        y_train = torch.tensor(y_train, dtype=torch.long)
+        y_train = F.one_hot(y_train, num_classes=num_classes).float()       # one-hot encode labels
 
         # create TensorDataset and DataLoader for batching
         train_dataset = TensorDataset(X_train, y_train)
@@ -135,7 +134,8 @@ def train_model(dict, sessions):
             X_test = np.expand_dims(X_test, axis=-2)
 
             X_test = torch.tensor(X_test, dtype=torch.float32)
-            y_test = torch.tensor(y_test, dtype=torch.float32)
+            y_test = torch.tensor(y_test, dtype=torch.long)
+            y_test = F.one_hot(y_test, num_classes=num_classes).float()
 
             # set validation data
             val_idxs = np.array([j for j in split if j != s])
@@ -144,11 +144,16 @@ def train_model(dict, sessions):
             X_val = np.expand_dims(X_val, axis=-2)
 
             X_val = torch.tensor(X_val, dtype=torch.float32)
-            y_val = torch.tensor(y_val, dtype=torch.float32)
+            y_val = torch.tensor(y_val, dtype=torch.long)
+            y_val = F.one_hot(y_val, num_classes=num_classes).float()
 
             # print(X_train.shape)
             # print(X_val.shape)
             # print(X_test.shape)
+            #
+            # print(y_train.shape)
+            # print(y_val.shape)
+            # print(y_test.shape)
 
             # training loop
             for epoch in range(n_epochs):
@@ -158,10 +163,12 @@ def train_model(dict, sessions):
                 # create training batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    ### input shape is (batch_size, n_channels, n_fft, 1) = (256, 3, 128, 1)
+                    ### input shape (batch_size, n_channels, n_fft, 1) = (256, 3, 128, 1)
+                    ### output shape (batch_size, num_classes)
 
                     optimizer.zero_grad()
                     pred = model(X_batch)
+
 
 
                     # # forward pass through model (convolutions + attention + probabilistic)
