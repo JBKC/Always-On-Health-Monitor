@@ -8,6 +8,7 @@ from sklearn.utils import shuffle
 import time
 import os
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import torch.optim as optim
@@ -155,6 +156,8 @@ def train_model(dict, sessions, num_classes=8):
             # print(y_val.shape)
             # print(y_test.shape)
 
+            loss_func = nn.CrossEntropyLoss()
+
             # training loop
             for epoch in range(n_epochs):
 
@@ -167,20 +170,15 @@ def train_model(dict, sessions, num_classes=8):
                     ### output shape (batch_size, num_classes)
 
                     optimizer.zero_grad()
-                    pred = model(X_batch)
+                    pred = model(X_batch)           # forward pass
 
+                    # calculate training loss on distribution
+                    loss = loss_func(pred, y_batch)
+                    loss.backward()
+                    optimizer.step()
 
-
-                    # # forward pass through model (convolutions + attention + probabilistic)
-                    # dist = model(x_cur, x_prev)
-                    #
-                    # # calculate training loss on distribution
-                    # loss = NLL(dist, y_batch).mean()
-                    # loss.backward()
-                    # optimizer.step()
-                    #
-                    # print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
-                    #       f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
+                    print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
+                          f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
 
     return
 
