@@ -69,6 +69,8 @@ class ConvLayers(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=(1,2))
 
 
+
+
     def forward(self, X):
 
         # fuse channels

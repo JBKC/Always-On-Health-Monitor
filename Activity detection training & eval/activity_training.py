@@ -97,7 +97,7 @@ def train_model(dict, sessions, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 500
+    n_epochs = 1
     patience = 10               # early stopping parameter
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
@@ -179,6 +179,26 @@ def train_model(dict, sessions, num_classes=8):
 
                     print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
                           f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
+
+
+                # validation on whole validation set after each epoch
+                model.eval()
+                with torch.no_grad():
+                    pred_val = model(X_val)
+                    loss_val = loss_func(pred_val, y_val)
+                    print(f'Test session: S{s + 1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {loss_val.item():.4f}')
+
+                    ### reinsert early stopping criteria here ###
+
+            # test on held-out session after all epochs complete
+            with torch.no_grad():
+                pred_test = model(X_test)
+                loss_test = loss_func(pred_test, y_test)
+                print(f'Test session: S{s + 1}, Test Loss: {loss_test.item():.4f}')
+
+    end_time = time.time()
+    print("TRAINING COMPLETE: time ", (end_time - start_time) / 3600, " hours.")
+
 
     return
 
