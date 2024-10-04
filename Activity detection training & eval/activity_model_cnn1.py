@@ -44,7 +44,7 @@ class ConvBlock(nn.Module):
 
 class ConvLayers(nn.Module):
     '''
-    Simple series of convolution layers
+    Series of convolution layers
     '''
 
     def __init__(self):
@@ -88,10 +88,25 @@ class ConvLayers(nn.Module):
 
         X = torch.flatten(X, start_dim=1)
 
+        return X
+
+class FCN(nn.Module):
+    '''
+    Series of fully connected layers
+    '''
+    def __init__(self, n_activities=8):
+
+        super().__init__()
+
+        self.fc1 = nn.Linear(256, n_activities)
+
+    def forward(self, X):
+
+        X = self.fc1(X)
+
         print(X.shape)
 
         return X
-
 
 
 class AccModel(nn.Module):
@@ -103,10 +118,12 @@ class AccModel(nn.Module):
         super().__init__()
 
         self.convolution = ConvLayers()
+        self.linear = FCN()
 
     def forward(self, X):
 
-        self.convolution(X)
+        X = self.convolution(X)
+        self.linear(X)
 
         return
 

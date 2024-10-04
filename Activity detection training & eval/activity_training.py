@@ -135,9 +135,11 @@ def train_model(dict, sessions):
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
                     ### input shape is (batch_size, n_channels, n_fft, 1) = (256, 3, 128, 1)
+                    print(X_batch.shape)
+                    print(y_batch.shape)
 
                     optimizer.zero_grad()
-                    model(X_batch)
+                    pred = model(X_batch)
 
 
                     # # forward pass through model (convolutions + attention + probabilistic)
