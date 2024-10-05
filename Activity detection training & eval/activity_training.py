@@ -97,7 +97,7 @@ def train_model(dict, sessions, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 10
+    n_epochs = 50
     patience = 10               # early stopping parameter
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
@@ -157,10 +157,13 @@ def train_model(dict, sessions, num_classes=8):
             # print(y_test.shape)
 
             loss_func = nn.CrossEntropyLoss()
+            train_losses = []
+            val_losses = []
 
             # training loop
             for epoch in range(n_epochs):
 
+                loss_epoch = 0.0
                 model.train()
 
                 # create training batches of windows to pass through model
@@ -177,9 +180,14 @@ def train_model(dict, sessions, num_classes=8):
                     loss.backward()
                     optimizer.step()
 
+                    loss_epoch += loss.item()
+
                     print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
                           f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
 
+                # track losses for plotting
+                loss_epoch /= len(train_loader)
+                train_losses.append(loss_epoch)
 
                 # validation on whole validation set after each epoch
                 model.eval()
@@ -188,7 +196,15 @@ def train_model(dict, sessions, num_classes=8):
                     loss_val = loss_func(pred_val, y_val)
                     print(f'Test session: S{s + 1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {loss_val.item():.4f}')
 
-                    ### reinsert early stopping criteria here ###
+                val_losses.append(loss_val.item())
+                ### reinsert early stopping criteria here ###
+
+            plt.plot(train_losses, label='Train Loss', color='blue')
+            plt.plot(val_losses, label='Validation Loss', color='black')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.show()
 
             # test on held-out session after all epochs complete
             with torch.no_grad():

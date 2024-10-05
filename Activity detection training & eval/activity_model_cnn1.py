@@ -69,8 +69,6 @@ class ConvLayers(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=(1,2))
 
 
-
-
     def forward(self, X):
 
         # fuse channels
@@ -99,11 +97,15 @@ class FCN(nn.Module):
 
         super().__init__()
 
-        self.fc1 = nn.Linear(256, n_activities)
+        self.fc1 = nn.Linear(256, 128)
+        self.fc2 = nn.Linear(128, n_activities)
+        self.dropout = nn.Dropout(p=0.5)
+
 
     def forward(self, X):
 
-        X = self.fc1(X)
+        X = F.relu(self.fc1(X))
+        X = self.fc2(self.dropout(X))
 
         return X
 
