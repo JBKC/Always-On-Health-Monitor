@@ -5,101 +5,66 @@ CNN model architecture, v1
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal
 
 
-class ConvBlock(nn.Module):
+class ConvLayer(nn.Module):
     '''
-    Repeating convolution layer structure
+    Single convolutional layer
     '''
 
-    def __init__(self, in_channels, n_filters, n_layers=5, pool_size=(1,2), kernel_size=(1,3)):
+    def __init__(self, in_channels, n_filters, kernel_size, pool_size=(1,2), pooling=True):
 
         super().__init__()
 
         # conv block = conv + BN + ReLU + pooling
-        self.conv_layers = nn.Sequential(
-            *[nn.Sequential(
-                nn.Conv1d(
-                    in_channels=in_channels if i == 0 else n_filters,
-                    out_channels=n_filters,
-                    kernel_size=kernel_size,
-                    stride=(1,1),
-                    padding='same'
-                ),
-                nn.BatchNorm2d(n_filters),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=pool_size)
-            ) for i in range(n_layers)]
-        )
-
-        self.dropout = nn.Dropout(p=dropout)
-
-    def forward(self, x):
-
-
-        return
-
-
-class ConvLayers(nn.Module):
-
-    def __init__(self):
-
-        super().__init__()
-
-        self.conv_block1 = ConvBlock(in_channels=1, n_filters=32, pool_size=4)
-        self.conv_block2 = ConvBlock(in_channels=32, n_filters=48, pool_size=2)
-        self.conv_block3 = ConvBlock(in_channels=48, n_filters=64, pool_size=2)
-
-
-
-class ConvLayers(nn.Module):
-    '''
-    Series of convolution layers
-    '''
-
-    def __init__(self):
-
-        super().__init__()
-
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=8, kernel_size=(1, 1),
-                               stride=(1,1), padding='same')
-
-        self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=(1, 3),
-                               stride=(1,1), padding='same')
-
-        self.conv3 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=(1, 3),
-                               stride=(1,1), padding='same',dilation=2)
-
-        self.conv4 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(1, 3),
-                               stride=(1, 1), padding='same', dilation=2)
-
-        self.conv5 = nn.Conv2d(in_channels=64, out_channels=16, kernel_size=(1, 3),
-                               stride=(1, 1), padding='same', dilation=2)
-
-
-        self.bn1 = nn.BatchNorm2d(16)
-
+        self.conv = nn.Conv2d(in_channels=in_channels,out_channels=n_filters,
+                                     kernel_size=kernel_size,stride=(1,1),padding='same')
+        self.bn = nn.BatchNorm2d(n_filters)
+        self.pooling = pooling
+        self.pool = nn.MaxPool2d(kernel_size=pool_size)
 
     def forward(self, X):
 
-        # fuse channels
-        X = F.relu(self.conv1(X))
+        X = self.conv(X)
+        # X = self.bn(X)
+        X = F.relu(X)
 
-        X = F.relu(self.conv2(X))
-        X = self.pool(X)
+        if self.pooling:
+            X = self.pool(X)
 
-        X = F.relu(self.conv3(X))
-        X = self.pool(X)
+        return X
 
-        X = F.relu(self.conv4(X))
-        X = self.pool(X)
 
-        X = F.relu(self.conv5(X))
+class ConvLayers(nn.Module):
+    '''
+    Series of convolutional layers
+    '''
+
+    def __init__(self):
+
+        super().__init__()
+
+        filters = [8, 16, 32, 64, 16]
+        in_channels = 3
+
+        # don't apply pooling on first and last layers
+
+        self.conv_blocks = nn.ModuleList([
+            ConvLayer(in_channels=in_channels if i == 0 else filters[i - 1], n_filters=filters[i],
+                      kernel_size=(1,1) if i == 0 else (1,3),
+                      pooling=(i != 0 and i != len(filters)-1))
+            for i in range(len(filters))
+        ])
+
+    def forward(self, X):
+
+        for conv_block in self.conv_blocks:
+            X = conv_block(X)
 
         X = torch.flatten(X, start_dim=1)
 
         return X
+
 
 class FCN(nn.Module):
     '''
@@ -139,6 +104,8 @@ class AccModel(nn.Module):
         X = self.linear(X)
 
         return X
+
+
 
 
 
