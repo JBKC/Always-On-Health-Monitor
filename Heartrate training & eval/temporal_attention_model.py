@@ -53,8 +53,8 @@ class ConvBlock(nn.Module):
             # apply to only left side of sequence
             x = F.pad(x, (padding_size, 0))
 
-            # Apply convolution and ReLU
-            x = F.relu(conv(x))
+            # Apply convolution
+            x = conv(x)
 
         # Apply pooling and dropout
         x = self.pool(x)
