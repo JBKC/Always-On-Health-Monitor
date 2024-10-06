@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from activity_model_cnn1 import AccModel
+from activity_model_cnn2 import AccModel                    # switch between models here
 
 
 def extract_activity(dict, sessions):
@@ -57,9 +57,6 @@ def fourier(dict, sessions):
         # take relevant part of FFT
         fft_acc = fft_acc[:,:,1:X.shape[-1]//2+1]
 
-        # normalise
-        fft_dict[s]['acc'] = z_normalise(fft_acc)
-
         # plt.plot(fft_dict[s]['acc'][2000, 0, :])
         # plt.show()
 
@@ -67,25 +64,32 @@ def fourier(dict, sessions):
 
     return fft_dict
 
-def z_normalise(X):
+def z_normalise(dict, sessions):
     '''
     Z-normalises data for each window across each channel
     :param X: of shape (n_windows, 3, n_fft)
     :return X_norm: of shape (n_windows, 3, n_fft)
     '''
 
-    # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4)
-    ms = np.mean(X, axis=2)
-    stds = np.std(X, axis=2)
+    z_dict = {f'{session}': {} for session in sessions}
 
-    # reshape ms and stds to allow broadcasting
-    ms_reshaped = ms[:, :, np.newaxis]
-    stds_reshaped = stds[:, :, np.newaxis]
+    for s in sessions:
+        X = dict[s]['acc']
 
-    # Z-normalisation
-    X_norm = (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
+        # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4)
+        ms = np.mean(X, axis=2)
+        stds = np.std(X, axis=2)
 
-    return X_norm
+        # reshape ms and stds to allow broadcasting
+        ms_reshaped = ms[:, :, np.newaxis]
+        stds_reshaped = stds[:, :, np.newaxis]
+
+        # Z-normalisation
+        X_norm = (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
+
+        z_dict[s]['acc'] = X_norm
+
+    return z_dict
 
 def train_model(dict, sessions, num_classes=8):
 
@@ -97,13 +101,13 @@ def train_model(dict, sessions, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 50
+    n_epochs = 30
     patience = 10               # early stopping parameter
     batch_size = 256            # number of windows to be processed together
     n_splits = 4
 
     model = AccModel()
-    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
     # create batch splits
     ids = shuffle(list(range(len(sessions))))       # index each session
@@ -221,7 +225,7 @@ def train_model(dict, sessions, num_classes=8):
 
 def main():
 
-    def load_dict(filename='ppg_dalia_dict'):
+    def load_dict(filename='ppg_dalia_dict_mf'):
 
         root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filepath = os.path.join(root_dir, filename)
@@ -240,11 +244,14 @@ def main():
     # ignore transient periods (not assigned an activity)
     act_dict = extract_activity(dict, sessions)
 
-    # convert to frequency domain & normalise
-    f_dict = fourier(act_dict, sessions)
+    # option to convert to frequency domain
+    # act_dict = fourier(act_dict, sessions)
+
+    # normalise
+    act_dict = z_normalise(act_dict, sessions)
 
     # train model
-    train_model(f_dict, sessions)
+    train_model(act_dict, sessions)
 
 
 
