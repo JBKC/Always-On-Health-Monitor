@@ -1,5 +1,6 @@
 '''
 CNN model architecture, v1
+Simple convolution test bed for 3 accelerometer channels
 '''
 
 import torch
