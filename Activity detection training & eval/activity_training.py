@@ -103,7 +103,7 @@ def train_model(dict, sessions, num_classes=8):
     n_splits = 4
 
     model = AccModel()
-    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-4)
 
     # create batch splits
     ids = shuffle(list(range(len(sessions))))       # index each session

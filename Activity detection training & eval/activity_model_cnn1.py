@@ -26,7 +26,7 @@ class ConvLayer(nn.Module):
     def forward(self, X):
 
         X = self.conv(X)
-        # X = self.bn(X)
+        X = self.bn(X)
         X = F.relu(X)
 
         if self.pooling:
@@ -76,7 +76,7 @@ class FCN(nn.Module):
 
         self.fc1 = nn.Linear(256, 128)
         self.fc2 = nn.Linear(128, n_activities)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.7)
 
 
     def forward(self, X):
