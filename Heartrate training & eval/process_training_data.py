@@ -14,13 +14,30 @@ from accelerometer_cnn import AdaptiveLinearModel
 import generate_adversarial_dataset
 
 
-def save_data(s, data_dict, root_dir):
+def save_data(s, data_dict, root_dir, filename):
     '''
     Pull raw data from PPG Dalia files and save down to a dictionary
     :param s: session name
     :param data_dict: empty dictionary to hold data
     :return: data_dict: filled dictionary with all PPG Dalia data
     '''
+
+    def mean_smooth(signal, window_size=64):
+        """
+        Applies mean smoothing filter
+        :param signal: input accelerometer signals of shape (n_channels, n_samples)
+        :param window_size: size of window over which to apply smoothing
+        :return smoothed: smoothed accelerometer signals of shape (n_channels, n_samples)
+        """
+
+        # smoothing kernel
+        kernel = np.ones(window_size) / window_size
+
+        # Apply convolution along the last dimension for each channel
+        smoothed = np.array([np.convolve(channel, kernel, mode='same') for channel in signal])
+
+        return smoothed
+
 
     # pull raw data
     with open(f'{root_dir}/ppg+dalia/{s}/{s}.pkl', 'rb') as file:
@@ -39,13 +56,21 @@ def save_data(s, data_dict, root_dir):
         data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
 
+        # apply mean-smoothing filter to acceleration data - currently used for activity detection
+        if filename == "ppg_dalia_dict_mf":
+
+            # plt.plot(data_dict[s]['acc'][0,:])
+            data_dict[s]['acc'] = mean_smooth(signal=data_dict[s]['acc'])
+            # plt.plot(data_dict[s]['acc'][0, :])
+            # plt.show()
+
         # window data
         data_dict = window_data(data_dict, s)
 
-        # print(data_dict[s]['ppg'].shape)
-        # print(data_dict[s]['acc'].shape)
-        # print(data_dict[s]['label'].shape)
-        # print(data_dict[s]['activity'].shape)
+        print(data_dict[s]['ppg'].shape)
+        print(data_dict[s]['acc'].shape)
+        print(data_dict[s]['label'].shape)
+        print(data_dict[s]['activity'].shape)
 
     return data_dict
 
@@ -251,7 +276,7 @@ def main():
 
         # iterate over sessions
         for session in sessions:
-            data_dict = save_data(session, data_dict, root_dir)
+            data_dict = save_data(session, data_dict, root_dir, filename)
 
         # save dictionary
 
@@ -275,11 +300,11 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # comment out save or load
-    # save_dict(sessions)
-    data_dict = load_dict()
+    save_dict(sessions, "ppg_dalia_dict_mf")
+    # data_dict = load_dict()
 
     # pass accelerometer data through CNN & save down new filtered data
-    ma_removal(data_dict, sessions)
+    # ma_removal(data_dict, sessions)
 
 
 if __name__ == '__main__':
