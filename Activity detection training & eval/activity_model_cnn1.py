@@ -76,7 +76,7 @@ class FCN(nn.Module):
 
         self.fc1 = nn.Linear(256, 128)
         self.fc2 = nn.Linear(128, n_activities)
-        self.dropout = nn.Dropout(p=0.7)
+        self.dropout = nn.Dropout(p=0.5)
 
 
     def forward(self, X):
