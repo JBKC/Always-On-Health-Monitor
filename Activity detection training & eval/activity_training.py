@@ -67,11 +67,9 @@ def fourier(dict, sessions):
 def z_normalise(dict, sessions):
     '''
     Z-normalises data for each window across each channel
-    :param X: of shape (n_windows, 3, n_fft)
-    :return X_norm: of shape (n_windows, 3, n_fft)
+    :param X: of shape (n_windows, 3, n_samples)
+    :return X_norm: of shape (n_windows, 3, n_samples)
     '''
-
-    z_dict = {f'{session}': {} for session in sessions}
 
     for s in sessions:
         X = dict[s]['acc']
@@ -87,11 +85,14 @@ def z_normalise(dict, sessions):
         # Z-normalisation
         X_norm = (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
 
-        z_dict[s]['acc'] = X_norm
+        dict[s]['acc'] = X_norm
 
-    return z_dict
+    return dict
 
 def train_model(dict, sessions, num_classes=8):
+
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     x = []
     y = []
@@ -108,6 +109,7 @@ def train_model(dict, sessions, num_classes=8):
 
     model = AccModel()
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    print(f"Number of trainable parameters: {count_parameters(model)}")
 
     # create batch splits
     ids = shuffle(list(range(len(sessions))))       # index each session
@@ -173,7 +175,7 @@ def train_model(dict, sessions, num_classes=8):
                 # create training batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    ### input shape (batch_size, n_channels, n_fft, 1) = (256, 3, 128, 1)
+                    ### input shape (batch_size, n_channels, 1, n_samples) = (256, 3, 1, 256)
                     ### output shape (batch_size, num_classes)
 
                     optimizer.zero_grad()

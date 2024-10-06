@@ -1,11 +1,12 @@
 '''
-CNN model architecture, v1
-Simple convolution test bed for 3 accelerometer channels
+CNN model architecture, v2
+PPG-NeXt architecture
 '''
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.models.optical_flow.raft import ResidualBlock
 
 
 class ConvLayer(nn.Module):
@@ -34,7 +35,6 @@ class ConvLayer(nn.Module):
             X = self.pool(X)
 
         return X
-
 
 class ConvLayers(nn.Module):
     '''
@@ -88,21 +88,50 @@ class FCN(nn.Module):
         return X
 
 
+class ResidualBlock(nn.Module):
+
+    def __init__(self, n_activities=8):
+
+        super().__init__()
+
+    def forward(self):
+
+        return
+
+
 class AccModel(nn.Module):
     '''
     Model architecture that takes only accelerometer channels
-    input shape = (batch_size, n_channels, n_samples)
+    input shape = (batch_size, n_channels, 1, n_samples)
     '''
-    def __init__(self):
+    def __init__(self,in_channels = 3, n_filters=8, pool_size=(1,2)):
+
         super().__init__()
 
-        self.convolution = ConvLayers()
+        self.conv1 = nn.Conv2d(in_channels=in_channels,out_channels=n_filters,
+                                     kernel_size=(1,1), stride=(1,1), padding='same')
+
+        self.bn = nn.BatchNorm2d(n_filters)
+        self.pool = nn.MaxPool2d(kernel_size=pool_size)
+
+        self.res_block = ResidualBlock()
+
         self.linear = FCN()
 
     def forward(self, X):
+        print(X.shape)
 
-        X = self.convolution(X)
-        X = self.linear(X)
+        # implement first block
+        X = self.conv1(X)
+        X = self.bn(X)
+        X = F.relu(X)
+        X = self.pool(X)
+
+        print(X.shape)
+
+        # ResNext-style block
+        # X =
+
 
         return X
 
