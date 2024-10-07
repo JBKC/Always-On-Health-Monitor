@@ -90,48 +90,71 @@ class FCN(nn.Module):
 
 class ResidualBlock(nn.Module):
 
-    def __init__(self, n_activities=8):
+    def __init__(self, in_channels, out_channels, cardinality=3, kernel_sizes=[3,5,7], stride=1):
 
         super().__init__()
 
-    def forward(self):
+        assert len(kernel_sizes) == cardinality, "Cardinality should match the number of kernel sizes provided"
 
-        return
+        ### WIP architecture
 
+        # create repeating branch of 2 convolution ResNeXt-style connections
+        # conv -> bn -> relu
+        self.conv_branches = nn.ModuleList([
+            nn.Sequential(nn.Conv1d(in_channels, out_channels,
+                                    kernel_size=ks, stride=stride, padding=ks // 2),
+                          nn.BatchNorm1d(n_filters),
+                          nn.ReLu(),
+                          nn.Conv1d(in_channels, out_channels,
+                                    kernel_size=ks, stride=stride, padding=ks // 2),
+                          nn.BatchNorm1d(n_filters),
+                          )
+            for ks in kernel_sizes
+        ])
+
+        self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=3,
+                                     kernel_size=1, stride=1, padding='same')
+    def forward(self, X):
+
+        # apply each branching convolution in parallel & concatenate
+        out = sum([branch(X) for branch in self.conv_branches])
+
+        out = torch.stack([branch(X) for branch in self.conv_branches], dim=0)
+        out = self.conv1(out)
+        out = self.conv1(X) + out
+
+        return out
 
 class AccModel(nn.Module):
     '''
     Model architecture that takes only accelerometer channels
     input shape = (batch_size, n_channels, 1, n_samples)
     '''
-    def __init__(self,in_channels = 3, n_filters=8, pool_size=(1,2)):
+    def __init__(self,in_channels=3, n_filters=8, pool_size=2):
 
         super().__init__()
 
-        self.conv1 = nn.Conv2d(in_channels=in_channels,out_channels=n_filters,
-                                     kernel_size=(1,1), stride=(1,1), padding='same')
+        self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=n_filters,
+                                     kernel_size=1, stride=1, padding='same')
 
-        self.bn = nn.BatchNorm2d(n_filters)
-        self.pool = nn.MaxPool2d(kernel_size=pool_size)
+        self.bn = nn.BatchNorm1d(n_filters)
+        self.pool = nn.MaxPool1d(kernel_size=pool_size)
 
-        self.res_block = ResidualBlock()
+        self.res_block = ResidualBlock(in_channels=in_channels,out_channels=n_filters)
 
         self.linear = FCN()
 
     def forward(self, X):
-        print(X.shape)
 
+        print(X.shape)
         # implement first block
-        X = self.conv1(X)
-        X = self.bn(X)
-        X = F.relu(X)
-        X = self.pool(X)
-
+        X = self.bn(self.conv1(X))
+        X = self.pool(F.relu(X))
         print(X.shape)
 
-        # ResNext-style block
-        # X =
-
+        # ResNext-style block x3 sequential
+        for i in range(3):
+            X = self.res_block(X)
 
         return X
 
