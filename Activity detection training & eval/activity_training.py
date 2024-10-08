@@ -123,7 +123,7 @@ def train_model(dict, sessions, num_classes=8):
         train_idxs = np.array([i for i in ids if i not in split])
         X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
         y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
-        X_train = np.expand_dims(X_train, axis=-2)                          # add height dimension to tensor
+        # X_train = np.expand_dims(X_train, axis=-2)                          # add height dimension to tensor
 
         X_train = torch.tensor(X_train, dtype=torch.float32)
         y_train = torch.tensor(y_train, dtype=torch.long)
@@ -138,7 +138,7 @@ def train_model(dict, sessions, num_classes=8):
             # set current session to test data
             X_test = x[s]
             y_test = y[s]
-            X_test = np.expand_dims(X_test, axis=-2)
+            # X_test = np.expand_dims(X_test, axis=-2)
 
             X_test = torch.tensor(X_test, dtype=torch.float32)
             y_test = torch.tensor(y_test, dtype=torch.long)
@@ -148,19 +148,19 @@ def train_model(dict, sessions, num_classes=8):
             val_idxs = np.array([j for j in split if j != s])
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
-            X_val = np.expand_dims(X_val, axis=-2)
+            # X_val = np.expand_dims(X_val, axis=-2)
 
             X_val = torch.tensor(X_val, dtype=torch.float32)
             y_val = torch.tensor(y_val, dtype=torch.long)
             y_val = F.one_hot(y_val, num_classes=num_classes).float()
 
-            # print(X_train.shape)
-            # print(X_val.shape)
-            # print(X_test.shape)
-            #
-            # print(y_train.shape)
-            # print(y_val.shape)
-            # print(y_test.shape)
+            print(X_train.shape)
+            print(X_val.shape)
+            print(X_test.shape)
+
+            print(y_train.shape)
+            print(y_val.shape)
+            print(y_test.shape)
 
             loss_func = nn.CrossEntropyLoss()
             train_losses = []
