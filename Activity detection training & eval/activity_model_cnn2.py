@@ -1,6 +1,6 @@
 '''
 CNN model architecture, v2
-PPG-NeXt architecture
+PPG-NeXt architecture (based on Google's Inception)
 '''
 
 import torch
@@ -96,8 +96,8 @@ class ResidualBlock(nn.Module):
 
         assert len(kernel_sizes) == cardinality, "Cardinality should match the number of kernel sizes provided"
 
-        # create repeating branch of 2 convolution ResNeXt-style connections: 1x1 followed by 1xn_i where n = kernel_sizes
-        # conv -> bn -> relu
+        # create a list of branched Inception-style convolutions: 1x1 followed by 1xn_i where n = kernel_sizes
+        # Conv → BN → ReLU → Conv → BN → sum → ReLU
         self.conv_branches = nn.ModuleList([
             nn.Sequential(nn.Conv1d(in_channels, out_channels,
                                     kernel_size=1, stride=stride, padding=ks // 2),
@@ -114,18 +114,18 @@ class ResidualBlock(nn.Module):
                                      kernel_size=1, stride=1, padding='same')
     def forward(self, X):
 
-        # apply each branching convolution in parallel & concatenate
-        out = sum([branch(X) for branch in self.conv_branches])
-
-        out = torch.stack([branch(X) for branch in self.conv_branches], dim=0)
-        out = self.conv1(out)
-        out = self.conv1(X) + out
+        # apply each branching convolution in parallel & sum
+        out1 = sum([branch(X) for branch in self.conv_branches])
+        # apply activation then pass through single 1x1 convolutional layer
+        out2 = self.conv1(F.relu(out1))
+        # add to residual connection
+        out = F.relu(out2 + self.conv1(X))
 
         return out
 
 class AccModel(nn.Module):
     '''
-    Model architecture that takes only accelerometer channels
+    Overall model architecture
     input shape = (batch_size, n_channels, n_samples)
     '''
     def __init__(self,in_channels=3, n_filters=8, pool_size=2):
@@ -145,12 +145,13 @@ class AccModel(nn.Module):
     def forward(self, X):
 
         print(X.shape)
+
         # implement first block
         X = self.bn(self.conv1(X))
         X = self.pool(F.relu(X))
         print(X.shape)
 
-        # ResNext-style block x3 sequential
+        # Inception-style block x3 sequential
         for i in range(3):
             X = self.res_block(X)
 
