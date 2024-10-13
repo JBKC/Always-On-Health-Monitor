@@ -90,24 +90,22 @@ class FCN(nn.Module):
 
 class ResidualBlock(nn.Module):
 
-    def __init__(self, in_channels, out_channels, cardinality=3, kernel_sizes=[3,5,7], stride=1):
+    def __init__(self, cardinality=3, kernel_sizes=[3,5,7], stride=1):
 
         super().__init__()
 
         assert len(kernel_sizes) == cardinality, "Cardinality should match the number of kernel sizes provided"
 
-        ### WIP architecture
-
-        # create repeating branch of 2 convolution ResNeXt-style connections
+        # create repeating branch of 2 convolution ResNeXt-style connections: 1x1 followed by 1xn_i where n = kernel_sizes
         # conv -> bn -> relu
         self.conv_branches = nn.ModuleList([
             nn.Sequential(nn.Conv1d(in_channels, out_channels,
-                                    kernel_size=ks, stride=stride, padding=ks // 2),
-                          nn.BatchNorm1d(n_filters),
-                          nn.ReLu(),
+                                    kernel_size=1, stride=stride, padding=ks // 2),
+                          nn.BatchNorm1d(out_channels),
+                          nn.ReLU(),
                           nn.Conv1d(in_channels, out_channels,
                                     kernel_size=ks, stride=stride, padding=ks // 2),
-                          nn.BatchNorm1d(n_filters),
+                          nn.BatchNorm1d(out_channels),
                           )
             for ks in kernel_sizes
         ])
@@ -128,7 +126,7 @@ class ResidualBlock(nn.Module):
 class AccModel(nn.Module):
     '''
     Model architecture that takes only accelerometer channels
-    input shape = (batch_size, n_channels, 1, n_samples)
+    input shape = (batch_size, n_channels, n_samples)
     '''
     def __init__(self,in_channels=3, n_filters=8, pool_size=2):
 
@@ -140,7 +138,7 @@ class AccModel(nn.Module):
         self.bn = nn.BatchNorm1d(n_filters)
         self.pool = nn.MaxPool1d(kernel_size=pool_size)
 
-        self.res_block = ResidualBlock(in_channels=in_channels,out_channels=n_filters)
+        self.res_block = ResidualBlock()
 
         self.linear = FCN()
 
