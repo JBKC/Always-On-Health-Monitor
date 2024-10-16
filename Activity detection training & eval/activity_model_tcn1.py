@@ -13,28 +13,43 @@ class Inception(nn.Module):
     Single Inception block
     '''
 
-    def __init__(self, in_channels, n_filters, pooling, stride, kernel_size=[10,20,40]):
+    def __init__(self, in_channels, n_filters, pooling_size, stride, kernel_size=[10,20,40]):
 
         super().__init__()
 
         # 1x1 bottleneck
         self.conv1x1 = nn.Conv1d(in_channels=in_channels,out_channels=n_filters,
-                                     kernel_size=1,stride=stride,padding='same')
+                                     kernel_size=1,stride=stride)
         # parallel convolutions
-        self.convincept = nn.Conv1d(in_channels=n_filters,out_channels=n_filters, )
+        self.branches = nn.ModuleList([nn.Conv1d(
+            in_channels=n_filters,out_channels=n_filters,
+            kernel_size=ks,stride=stride,padding=(ks-1)//2 if ks % 2 == 0 else ks//2) for ks in kernel_size])
 
-        self.bn = nn.BatchNorm2d(n_filters)
-        self.pooling = pooling
-        self.pool = nn.MaxPool2d(kernel_size=pool_size)
+        self.pooling = nn.MaxPool1d(kernel_size=pooling_size, stride=stride,
+                                    padding=(pooling_size-1)//2 if pooling_size % 2 == 0 else pooling_size//2)
 
     def forward(self, X):
 
-        X = self.conv(X)
-        X = self.bn(X)
-        X = F.relu(X)
+        print(X.shape)
+        # pass through bottleneck
+        X1x1 = self.conv1x1(X)
+        print(X1x1.shape)
 
-        if self.pooling:
-            X = self.pool(X)
+        # pass through convolution branches in parallel to get list
+        out = [branch(X1x1) for branch in self.branches]
+
+        for i in range(len(out)):
+            print(out[i].shape)
+
+        # pass through maxpool branch
+        max_out = self.conv1x1(self.pooling(X))
+        print(max_out.shape)
+        out.append(max_out)
+
+        # concatenate outputs across channel dimension
+        X = torch.cat(out, dim=1)
+        print(X.shape)
+
 
         return X
 
@@ -52,18 +67,20 @@ class ConvBlocks(nn.Module):
         n_filters = 32
         n_blocks = 6
         stride = 1
-        pooling = 3
+        pooling_size = 3
 
         # create stacked structure of Inception blocks
         self.conv_blocks = nn.ModuleList([
             Inception(in_channels=in_channels if i == 0 else n_filters, n_filters=n_filters,
-                       pooling=pooling, stride=stride)
+                       pooling_size=pooling_size, stride=stride)
             for i in range(n_blocks)
         ])
 
     def forward(self, X):
 
-        X = self.conv_blocks(X)
+        # iterate over each block in the ModuleList
+        for block in self.conv_blocks:
+            X = block(X)
 
 
         return X

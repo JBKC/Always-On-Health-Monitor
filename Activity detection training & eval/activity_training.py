@@ -154,13 +154,12 @@ def train_model(dict, sessions, num_classes=8):
             y_val = torch.tensor(y_val, dtype=torch.long)
             y_val = F.one_hot(y_val, num_classes=num_classes).float()
 
-            print(X_train.shape)
-            print(X_val.shape)
-            print(X_test.shape)
-
-            print(y_train.shape)
-            print(y_val.shape)
-            print(y_test.shape)
+            print(f'X_train shape: {X_train.shape}')
+            print(f'y_train shape: {y_train.shape}')
+            print(f'X_val shape: {X_val.shape}')
+            print(f'y_val shape: {y_val.shape}')
+            print(f'X_test shape: {X_test.shape}')
+            print(f'y_test shape: {y_test.shape}')
 
             loss_func = nn.CrossEntropyLoss()
             train_losses = []
