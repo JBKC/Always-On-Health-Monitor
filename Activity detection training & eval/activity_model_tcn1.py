@@ -1,5 +1,6 @@
 '''
 TCN model architecture, v1
+Based on InceptionTime
 '''
 
 import torch
@@ -7,18 +8,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class ConvLayer(nn.Module):
+class Inception(nn.Module):
     '''
-    Single convolutional layer
+    Single Inception block
     '''
 
-    def __init__(self, in_channels, n_filters, kernel_size, pool_size=(1,2), pooling=True):
+    def __init__(self, in_channels, n_filters, pooling, stride, kernel_size=[10,20,40]):
 
         super().__init__()
 
-        # conv block = conv + BN + ReLU + pooling
-        self.conv = nn.Conv2d(in_channels=in_channels,out_channels=n_filters,
-                                     kernel_size=kernel_size,stride=(1,1),padding='same')
+        # 1x1 bottleneck
+        self.conv1x1 = nn.Conv1d(in_channels=in_channels,out_channels=n_filters,
+                                     kernel_size=1,stride=stride,padding='same')
+        # parallel convolutions
+        self.convincept = nn.Conv1d(in_channels=n_filters,out_channels=n_filters, )
+
         self.bn = nn.BatchNorm2d(n_filters)
         self.pooling = pooling
         self.pool = nn.MaxPool2d(kernel_size=pool_size)
@@ -35,33 +39,32 @@ class ConvLayer(nn.Module):
         return X
 
 
-class ConvLayers(nn.Module):
+class ConvBlocks(nn.Module):
     '''
-    Series of convolutional layers
+    Series of repeating Inception blocks
     '''
 
     def __init__(self):
 
         super().__init__()
 
-        filters = [8, 16, 32, 64, 16]
         in_channels = 3
+        n_filters = 32
+        n_blocks = 6
+        stride = 1
+        pooling = 3
 
-        # don't apply pooling on first and last layers
-
+        # create stacked structure of Inception blocks
         self.conv_blocks = nn.ModuleList([
-            ConvLayer(in_channels=in_channels if i == 0 else filters[i - 1], n_filters=filters[i],
-                      kernel_size=(1,5) if i == 0 else (1,5),
-                      pooling=(i != 0 and i != len(filters)-1))
-            for i in range(len(filters))
+            Inception(in_channels=in_channels if i == 0 else n_filters, n_filters=n_filters,
+                       pooling=pooling, stride=stride)
+            for i in range(n_blocks)
         ])
 
     def forward(self, X):
 
-        for conv_block in self.conv_blocks:
-            X = conv_block(X)
+        X = self.conv_blocks(X)
 
-        X = torch.flatten(X, start_dim=1)
 
         return X
 
@@ -87,21 +90,20 @@ class FCN(nn.Module):
         return X
 
 
-class AccModel(nn.Module):
+class TCNModel(nn.Module):
     '''
-    Model architecture that takes only accelerometer channels
+    Full Model architecture
     input shape = (batch_size, n_channels, n_samples)
     '''
     def __init__(self):
         super().__init__()
 
-        self.convolution = ConvLayers()
-        self.linear = FCN()
+        self.conv = ConvBlocks()
 
     def forward(self, X):
 
-        X = self.convolution(X)
-        X = self.linear(X)
+        # pass through inception time blocks
+        X = self.conv(X)
 
         return X
 
