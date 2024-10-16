@@ -70,16 +70,34 @@ class ConvBlocks(nn.Module):
         # create stacked structure of Inception blocks
         self.conv_blocks = nn.ModuleList([
             Inception(in_channels=in_channels if i == 0 else n_out, n_filters=n_filters,
-                       pooling_size=pooling_size, stride=stride)
+                      pooling_size=pooling_size, stride=stride)
             for i in range(n_blocks)
         ])
 
+        self.res1x1 = nn.Conv1d(in_channels=in_channels,out_channels=n_out,
+                                     kernel_size=1,stride=stride)
+
+        self.bn = nn.BatchNorm1d(n_out)
+
+
     def forward(self, X):
 
+        # save input for residual connection
+        residual = X
+
         # iterate over each block in the ModuleList
-        for block in self.conv_blocks:
+        for i, block in enumerate(self.conv_blocks):
+
+            print(i)
             X = block(X)
 
+            # residual block every 3rd connection
+            if (i + 1) % 3 == 0:
+                if residual.shape != X.shape:           # shape mismatch will occur with the first residual
+                    residual = self.bn(self.res1x1(residual))
+
+                X = F.relu(self.bn(X + residual))
+                residual = X
 
         return X
 
