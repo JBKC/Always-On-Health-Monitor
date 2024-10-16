@@ -13,7 +13,7 @@ class Inception(nn.Module):
     Single Inception block
     '''
 
-    def __init__(self, in_channels, n_filters, pooling_size, stride, kernel_size=[10,20,40]):
+    def __init__(self, in_channels, n_filters, pooling_size, stride, kernel_size=[11,21,41]):
 
         super().__init__()
 
@@ -33,23 +33,17 @@ class Inception(nn.Module):
         print(X.shape)
         # pass through bottleneck
         X1x1 = self.conv1x1(X)
-        print(X1x1.shape)
 
         # pass through convolution branches in parallel to get list
         out = [branch(X1x1) for branch in self.branches]
 
-        for i in range(len(out)):
-            print(out[i].shape)
-
         # pass through maxpool branch
         max_out = self.conv1x1(self.pooling(X))
-        print(max_out.shape)
         out.append(max_out)
 
         # concatenate outputs across channel dimension
         X = torch.cat(out, dim=1)
         print(X.shape)
-
 
         return X
 
@@ -68,10 +62,11 @@ class ConvBlocks(nn.Module):
         n_blocks = 6
         stride = 1
         pooling_size = 3
+        n_out = 128             # number of output feature maps (channels) for each layer
 
         # create stacked structure of Inception blocks
         self.conv_blocks = nn.ModuleList([
-            Inception(in_channels=in_channels if i == 0 else n_filters, n_filters=n_filters,
+            Inception(in_channels=in_channels if i == 0 else n_out, n_filters=n_filters,
                        pooling_size=pooling_size, stride=stride)
             for i in range(n_blocks)
         ])
