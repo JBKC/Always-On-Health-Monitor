@@ -28,24 +28,27 @@ class Inception(nn.Module):
         self.pooling = nn.MaxPool1d(kernel_size=pooling_size, stride=stride,
                                     padding=(pooling_size-1)//2 if pooling_size % 2 == 0 else pooling_size//2)
 
+        self.bn = nn.BatchNorm1d(n_filters)
+
+
     def forward(self, X):
 
         print(X.shape)
         # pass through bottleneck
-        X1x1 = self.conv1x1(X)
+        X1x1 = F.relu(self.bn(self.conv1x1(X)))
 
         # pass through convolution branches in parallel to get list
-        out = [branch(X1x1) for branch in self.branches]
+        conv_out = [self.bn(branch(X1x1)) for branch in self.branches]
 
         # pass through maxpool branch
-        max_out = self.conv1x1(self.pooling(X))
-        out.append(max_out)
+        max_out = self.bn(self.conv1x1(self.pooling(X)))
+        conv_out.append(max_out)
 
         # concatenate outputs across channel dimension
-        X = torch.cat(out, dim=1)
-        print(X.shape)
+        out = F.relu(torch.cat(conv_out, dim=1))
+        print(out.shape)
 
-        return X
+        return out
 
 
 class ConvBlocks(nn.Module):
