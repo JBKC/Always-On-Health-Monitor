@@ -32,7 +32,6 @@ class SingleBlock(nn.Module):
 
     def forward(self, X):
 
-        print(X.shape)
         # pass in parallel through each branch
         out = [branch(X) for branch in self.branches]
         # sum up the result
@@ -41,7 +40,6 @@ class SingleBlock(nn.Module):
         out = self.conv1x1(out)
         # add residual
         out = F.relu(self.bn2(out + X))
-        print(out.shape)
 
         return X
 
@@ -72,7 +70,6 @@ class MultiKernel(nn.Module):
 
         # iterate over each block in the ModuleList
         for i, block in enumerate(self.blocks):
-            print(i)
             X = block(X)
 
 
@@ -99,10 +96,8 @@ class ConvBlock(nn.Module):
 
     def forward(self, X):
 
-        print(X.shape)
         X = self.bn(self.conv1(X))
         X = self.pooling(F.relu(X))
-        print(X.shape)
 
         return X
 
@@ -120,6 +115,7 @@ class AccModel(nn.Module):
         self.conv = ConvBlock()
         self.multi_kernel = MultiKernel()
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
+        self.fc = nn.Linear(256, n_activities)
 
     def forward(self, X):
 
@@ -131,8 +127,6 @@ class AccModel(nn.Module):
         X = torch.squeeze(self.gap(X), dim=-1)
         # FCN to output
         X = self.fc(X)
-
-        print(X.shape)
 
         return X
 
