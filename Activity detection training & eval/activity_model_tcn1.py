@@ -124,7 +124,7 @@ class AccModel(nn.Module):
         # perform global average pooling
         X = torch.squeeze(self.gap(X), dim=-1)
 
-        # FCN to softmax
+        # FCN to output
         X = self.fc(X)
 
         return X
