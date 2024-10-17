@@ -15,8 +15,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
 # switch between models here
-from activity_model_tcn1 import AccModel
-# from activity_model_cnn2 import AccModel
+# from activity_model_tcn1 import AccModel
+from activity_model_cnn2 import AccModel
 
 def extract_activity(dict, sessions):
     '''
@@ -104,9 +104,9 @@ def train_model(dict, sessions, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 20
+    n_epochs = 100
     patience = 10               # early stopping parameter
-    batch_size = 64             # number of windows to be processed together
+    batch_size = 128             # number of windows to be processed together
     n_splits = 4
 
     model = AccModel()
@@ -205,6 +205,9 @@ def train_model(dict, sessions, num_classes=8):
 
                 val_losses.append(loss_val.item())
                 ### reinsert early stopping criteria here ###
+
+            split_time = time.time()
+            print("SINGLE SPLIT COMPLETE: time ", (split_time - start_time) / 3600, " hours.")
 
             plt.plot(train_losses, label='Train Loss', color='blue')
             plt.plot(val_losses, label='Validation Loss', color='black')
