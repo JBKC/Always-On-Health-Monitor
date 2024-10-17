@@ -104,7 +104,7 @@ def train_model(dict, sessions, num_classes=8):
     # initialise model
     n_epochs = 30
     patience = 10               # early stopping parameter
-    batch_size = 256            # number of windows to be processed together
+    batch_size = 64             # number of windows to be processed together
     n_splits = 4
 
     model = TCNModel()
@@ -174,8 +174,8 @@ def train_model(dict, sessions, num_classes=8):
                 # create training batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    ### input shape (batch_size, n_channels, 1, n_samples) = (256, 3, 1, 256)
-                    ### output shape (batch_size, num_classes)
+                    ### input shape (batch_size, n_channels, n_samples) = (64, 3, 256)
+                    ### output shape (batch_size, num_classes) = (64, 3)
 
                     optimizer.zero_grad()
                     pred = model(X_batch)           # forward pass

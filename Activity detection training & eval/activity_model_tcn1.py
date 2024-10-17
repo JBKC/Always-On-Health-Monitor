@@ -33,7 +33,6 @@ class Inception(nn.Module):
 
     def forward(self, X):
 
-        print(X.shape)
         # pass through bottleneck
         X1x1 = F.relu(self.bn(self.conv1x1(X)))
 
@@ -46,7 +45,6 @@ class Inception(nn.Module):
 
         # concatenate outputs across channel dimension
         out = F.relu(torch.cat(conv_out, dim=1))
-        print(out.shape)
 
         return out
 
@@ -65,7 +63,7 @@ class ConvBlocks(nn.Module):
         n_blocks = 6
         stride = 1
         pooling_size = 3
-        n_out = 128             # number of output feature maps (channels) for each layer
+        n_out = 128
 
         # create stacked structure of Inception blocks
         self.conv_blocks = nn.ModuleList([
@@ -88,7 +86,6 @@ class ConvBlocks(nn.Module):
         # iterate over each block in the ModuleList
         for i, block in enumerate(self.conv_blocks):
 
-            print(i)
             X = block(X)
 
             # residual block every 3rd connection
@@ -102,27 +99,6 @@ class ConvBlocks(nn.Module):
         return X
 
 
-class FCN(nn.Module):
-    '''
-    Series of fully connected layers
-    '''
-    def __init__(self, n_activities=8):
-
-        super().__init__()
-
-        self.fc1 = nn.Linear(256, 128)
-        self.fc2 = nn.Linear(128, n_activities)
-        self.dropout = nn.Dropout(p=0.5)
-
-
-    def forward(self, X):
-
-        X = F.relu(self.fc1(X))
-        X = self.fc2(self.dropout(X))
-
-        return X
-
-
 class TCNModel(nn.Module):
     '''
     Full Model architecture
@@ -131,12 +107,25 @@ class TCNModel(nn.Module):
     def __init__(self):
         super().__init__()
 
+        n_activities = 8
+
         self.conv = ConvBlocks()
+        self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
+
+        self.fc = nn.Linear(128, n_activities)
+        self.dropout = nn.Dropout(p=0.5)
+
 
     def forward(self, X):
 
         # pass through inception time blocks
         X = self.conv(X)
+
+        # perform global average pooling
+        X = torch.squeeze(self.gap(X), dim=-1)
+
+        # FCN to softmax
+        X = self.fc(X)
 
         return X
 
