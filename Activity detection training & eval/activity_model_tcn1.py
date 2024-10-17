@@ -99,7 +99,7 @@ class ConvBlocks(nn.Module):
         return X
 
 
-class TCNModel(nn.Module):
+class AccModel(nn.Module):
     '''
     Full Model architecture
     input shape = (batch_size, n_channels, n_samples)

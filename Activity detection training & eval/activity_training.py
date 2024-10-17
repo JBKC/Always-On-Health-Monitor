@@ -13,7 +13,8 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from activity_model_tcn1 import TCNModel                    # switch between models here
+
+from activity_model_tcn1 import AccModel                    # switch between models here
 
 
 def extract_activity(dict, sessions):
@@ -107,7 +108,7 @@ def train_model(dict, sessions, num_classes=8):
     batch_size = 64             # number of windows to be processed together
     n_splits = 4
 
-    model = TCNModel()
+    model = AccModel()
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
     print(f"Number of trainable parameters: {count_parameters(model)}")
 
