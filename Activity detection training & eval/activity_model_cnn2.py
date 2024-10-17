@@ -6,157 +6,99 @@ PPG-NeXt architecture (based on Google's Inception)
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models.optical_flow.raft import ResidualBlock
 
 
-class ConvLayer(nn.Module):
+
+
+
+class MultiKernel(nn.Module):
     '''
-    Single convolutional layer
-    '''
-
-    def __init__(self, in_channels, n_filters, kernel_size, pool_size=(1,2), pooling=True):
-
-        super().__init__()
-
-        # conv block = conv + BN + ReLU + pooling
-        self.conv = nn.Conv2d(in_channels=in_channels,out_channels=n_filters,
-                                     kernel_size=kernel_size,stride=(1,1),padding='same')
-        self.bn = nn.BatchNorm2d(n_filters)
-        self.pooling = pooling
-        self.pool = nn.MaxPool2d(kernel_size=pool_size)
-
-    def forward(self, X):
-
-        X = self.conv(X)
-        X = self.bn(X)
-        X = F.relu(X)
-
-        if self.pooling:
-            X = self.pool(X)
-
-        return X
-
-class ConvLayers(nn.Module):
-    '''
-    Series of convolutional layers
+    Series of repeating Inception-style blocks
     '''
 
     def __init__(self):
 
         super().__init__()
 
-        filters = [8, 16, 32, 64, 16]
         in_channels = 3
+        n_filters = 32
+        n_blocks = 3
+        pooling_size = 3
+        n_out = 128
 
-        # don't apply pooling on first and last layers
-
+        # create stacked structure of Inception blocks
         self.conv_blocks = nn.ModuleList([
-            ConvLayer(in_channels=in_channels if i == 0 else filters[i - 1], n_filters=filters[i],
-                      kernel_size=(1,1) if i == 0 else (1,3),
-                      pooling=(i != 0 and i != len(filters)-1))
-            for i in range(len(filters))
+            Inception(in_channels=in_channels if i == 0 else n_out, n_filters=n_filters,
+                      pooling_size=pooling_size, stride=stride)
+            for i in range(n_blocks)
         ])
+
+        self.res1x1 = nn.Conv1d(in_channels=in_channels,out_channels=n_out,
+                                     kernel_size=1,stride=stride)
+
+        self.bn = nn.BatchNorm1d(n_out)
+
 
     def forward(self, X):
 
-        for conv_block in self.conv_blocks:
-            X = conv_block(X)
+        # iterate over each block in the ModuleList
+        for i, block in enumerate(self.conv_blocks):
+            X = block(X)
 
-        X = torch.flatten(X, start_dim=1)
 
         return X
 
-
-class FCN(nn.Module):
+class ConvBlock(nn.Module):
     '''
-    Series of fully connected layers
+    Input convolutional block
     '''
-    def __init__(self, n_activities=8):
+    def __init__(self):
 
         super().__init__()
 
-        self.fc1 = nn.Linear(512, 128)
-        self.fc2 = nn.Linear(128, n_activities)
-        self.dropout = nn.Dropout(p=0.5)
+        in_channels = 3
+        n_filters = 32
+        pooling_size = 3
 
+        self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=n_filters,
+                                     kernel_size=1,stride=1)
+
+        self.bn = nn.BatchNorm1d(num_features=n_filters)
+        self.pooling = nn.MaxPool1d(kernel_size=pooling_size,
+                                    padding=(pooling_size-1)//2 if pooling_size % 2 == 0 else pooling_size//2)
 
     def forward(self, X):
 
-        X = F.relu(self.fc1(X))
-        X = self.fc2(self.dropout(X))
+        print(X.shape)
+        X = self.bn(self.conv1(X))
+        X = self.pooling(F.relu(X))
+        print(X.shape)
 
         return X
 
-
-class ResidualBlock(nn.Module):
-
-    def __init__(self, cardinality=3, kernel_sizes=[3,5,7], stride=1):
-
-        super().__init__()
-
-        assert len(kernel_sizes) == cardinality, "Cardinality should match the number of kernel sizes provided"
-
-        # create a list of branched Inception-style convolutions: 1x1 followed by 1xn_i where n = kernel_sizes
-        # Conv → BN → ReLU → Conv → BN → sum → ReLU
-        self.conv_branches = nn.ModuleList([
-            nn.Sequential(nn.Conv1d(in_channels, out_channels,
-                                    kernel_size=1, stride=stride, padding=ks // 2),
-                          nn.BatchNorm1d(out_channels),
-                          nn.ReLU(),
-                          nn.Conv1d(in_channels, out_channels,
-                                    kernel_size=ks, stride=stride, padding=ks // 2),
-                          nn.BatchNorm1d(out_channels),
-                          )
-            for ks in kernel_sizes
-        ])
-
-        self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=3,
-                                     kernel_size=1, stride=1, padding='same')
-    def forward(self, X):
-
-        # apply each branching convolution in parallel & sum
-        out1 = sum([branch(X) for branch in self.conv_branches])
-        # apply activation then pass through single 1x1 convolutional layer
-        out2 = self.conv1(F.relu(out1))
-        # add to residual connection
-        out = F.relu(out2 + self.conv1(X))
-
-        return out
 
 class AccModel(nn.Module):
     '''
-    Overall model architecture
+    Full Model architecture
     input shape = (batch_size, n_channels, n_samples)
     '''
-    def __init__(self,in_channels=3, n_filters=8, pool_size=2):
-
+    def __init__(self):
         super().__init__()
 
-        self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=n_filters,
-                                     kernel_size=1, stride=1, padding='same')
+        n_activities = 8
 
-        self.bn = nn.BatchNorm1d(n_filters)
-        self.pool = nn.MaxPool1d(kernel_size=pool_size)
-
-        self.res_block = ResidualBlock()
-
-        self.linear = FCN()
+        self.conv = ConvBlock()
+        self.multi_kernel = MultiKernel()
 
     def forward(self, X):
 
-        print(X.shape)
+        # pass through initial convolutional block
+        X = self.conv(X)
 
-        # implement first block
-        X = self.bn(self.conv1(X))
-        X = self.pool(F.relu(X))
-        print(X.shape)
-
-        # Inception-style block x3 sequential
-        for i in range(3):
-            X = self.res_block(X)
+        # multi-kernel blocks
+        X = self.multi_kernel(X)
 
         return X
-
 
 
 
