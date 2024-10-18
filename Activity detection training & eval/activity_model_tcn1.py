@@ -61,7 +61,7 @@ class ConvBlocks(nn.Module):
         super().__init__()
 
         in_channels = 3
-        n_filters = 16
+        n_filters = 8
         n_blocks = 6
         stride = 1
         pooling_size = 3
