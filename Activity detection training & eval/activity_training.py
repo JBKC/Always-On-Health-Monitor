@@ -178,8 +178,8 @@ def train_model(dict, sessions, num_classes=8):
                 # create training batches of windows to pass through model
                 for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
 
-                    ### input shape (batch_size, n_channels, n_samples) = (64, 3, 256)
-                    ### output shape (batch_size, num_classes) = (64, 3)
+                    ### input shape (batch_size, n_channels, n_samples)
+                    ### output shape (batch_size, n_activities)
 
                     optimizer.zero_grad()
                     pred = model(X_batch)           # forward pass
