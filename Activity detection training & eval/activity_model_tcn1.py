@@ -29,12 +29,13 @@ class Inception(nn.Module):
                                     padding=(pooling_size-1)//2 if pooling_size % 2 == 0 else pooling_size//2)
 
         self.bn = nn.BatchNorm1d(n_filters)
-
+        self.dropout = nn.Dropout(p=0.2)
 
     def forward(self, X):
 
         # pass through bottleneck
         X1x1 = F.relu(self.bn(self.conv1x1(X)))
+        # X1x1 = self.dropout(X1x1)
 
         # pass through convolution branches in parallel to get list
         conv_out = [self.bn(branch(X1x1)) for branch in self.branches]
@@ -45,6 +46,7 @@ class Inception(nn.Module):
 
         # concatenate outputs across channel dimension
         out = F.relu(torch.cat(conv_out, dim=1))
+        # out = self.dropout(out)
 
         return out
 
@@ -59,11 +61,11 @@ class ConvBlocks(nn.Module):
         super().__init__()
 
         in_channels = 3
-        n_filters = 32
+        n_filters = 8
         n_blocks = 6
         stride = 1
         pooling_size = 3
-        n_out = 128
+        n_out = n_filters*4
 
         # create stacked structure of Inception blocks
         self.conv_blocks = nn.ModuleList([
@@ -112,8 +114,8 @@ class AccModel(nn.Module):
         self.conv = ConvBlocks()
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
 
-        self.fc = nn.Linear(128, n_activities)
-        self.dropout = nn.Dropout(p=0.5)
+        self.fc = nn.Linear(32, n_activities)
+        self.dropout = nn.Dropout(p=0.2)
 
 
     def forward(self, X):
@@ -123,6 +125,7 @@ class AccModel(nn.Module):
 
         # perform global average pooling
         X = torch.squeeze(self.gap(X), dim=-1)
+        X = self.dropout(X)
 
         # FCN to output
         X = self.fc(X)
