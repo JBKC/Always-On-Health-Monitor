@@ -75,7 +75,7 @@ class MultiKernel(nn.Module):
 
         return X
 
-class ConvBlock(nn.Module):
+class InitialBlock(nn.Module):
     '''
     Input convolutional block
     '''
@@ -112,7 +112,7 @@ class AccModel(nn.Module):
 
         n_activities = 8
 
-        self.conv = ConvBlock()
+        self.conv = InitialBlock()
         self.multi_kernel = MultiKernel()
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
         self.fc = nn.Linear(256, n_activities)

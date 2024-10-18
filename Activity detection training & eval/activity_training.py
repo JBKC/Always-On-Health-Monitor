@@ -15,8 +15,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
 # switch between models here
-from activity_model_tcn1 import AccModel
-# from activity_model_cnn2 import AccModel
+# from activity_model_tcn1 import AccModel
+from activity_model_cnn2 import AccModel
 
 def extract_activity(dict, sessions):
     '''
@@ -28,12 +28,16 @@ def extract_activity(dict, sessions):
     for s in sessions:
 
         y = dict[s]['activity']
-        X = dict[s]['acc']
+        # 4 channel input
+        X_ppg = dict[s]['ppg']
+        X_acc = dict[s]['acc']
 
         # remove transient regions
         act_idx = np.where(y != 0)[0]
         y = y[act_idx]
-        X = X[act_idx]
+        X_ppg = X_ppg[act_idx]
+        X_acc = X_acc[act_idx]
+
         y = (y-1).astype(int)
 
         # add to dictionary
@@ -104,8 +108,8 @@ def train_model(dict, sessions, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 100
-    batch_size = 32             # number of windows to be processed together
+    n_epochs = 20
+    batch_size = 128             # number of windows to be processed together
     n_splits = 4
 
     model = AccModel()
