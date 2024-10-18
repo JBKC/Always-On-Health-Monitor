@@ -83,7 +83,7 @@ class InitialBlock(nn.Module):
 
         super().__init__()
 
-        in_channels = 3
+        in_channels = 4
         pooling_size = 3
         n_out = 256
 

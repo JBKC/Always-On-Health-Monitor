@@ -42,7 +42,7 @@ def extract_activity(dict, sessions):
 
         # add to dictionary
         act_dict[s]['activity'] = y
-        act_dict[s]['acc'] = X
+        act_dict[s]['input'] = np.concatenate((X_ppg, X_acc), axis=1)
 
     return act_dict
 
@@ -78,7 +78,7 @@ def z_normalise(dict, sessions):
     '''
 
     for s in sessions:
-        X = dict[s]['acc']
+        X = dict[s]['input']
 
         # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4)
         ms = np.mean(X, axis=2)
@@ -90,8 +90,7 @@ def z_normalise(dict, sessions):
 
         # Z-normalisation
         X_norm = (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
-
-        dict[s]['acc'] = X_norm
+        dict[s]['input'] = X_norm
 
     return dict
 
@@ -104,7 +103,7 @@ def train_model(dict, sessions, num_classes=8):
     y = []
 
     # create lists for training & label data
-    x.extend([dict[session]['acc'] for session in sessions])
+    x.extend([dict[session]['input'] for session in sessions])
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
