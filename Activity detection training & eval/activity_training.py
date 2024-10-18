@@ -104,9 +104,8 @@ def train_model(dict, sessions, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 20
-    patience = 10               # early stopping parameter
-    batch_size = 64             # number of windows to be processed together
+    n_epochs = 100
+    batch_size = 32             # number of windows to be processed together
     n_splits = 4
 
     model = AccModel()
