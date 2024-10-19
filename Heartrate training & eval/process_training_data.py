@@ -22,7 +22,7 @@ def save_data(s, data_dict, root_dir, filename):
     :return: data_dict: filled dictionary with all PPG Dalia data
     '''
 
-    def mean_smooth(signal, window_size=64):
+    def mean_smooth(signal, window_size=8):
         """
         Applies mean smoothing filter
         :param signal: input accelerometer signals of shape (n_channels, n_samples)
@@ -35,6 +35,11 @@ def save_data(s, data_dict, root_dir, filename):
 
         # Apply convolution along the last dimension for each channel
         smoothed = np.array([np.convolve(channel, kernel, mode='same') for channel in signal])
+        # plt.plot(signal[0,:])
+        # plt.plot(smoothed[0,:])
+        # plt.show()
+
+        print(f'SMOOTHIE:{smoothed.shape}')
 
         return smoothed
 
@@ -56,13 +61,11 @@ def save_data(s, data_dict, root_dir, filename):
         data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
 
-        # apply mean-smoothing filter to acceleration data - currently used for activity detection
+        # apply mean-smoothing filter to all input - currently used for activity detection
         if filename == "ppg_dalia_dict_mf":
 
-            # plt.plot(data_dict[s]['acc'][0,:])
+            data_dict[s]['ppg'] = mean_smooth(signal=data_dict[s]['ppg'])
             data_dict[s]['acc'] = mean_smooth(signal=data_dict[s]['acc'])
-            # plt.plot(data_dict[s]['acc'][0, :])
-            # plt.show()
 
         # window data
         data_dict = window_data(data_dict, s)
