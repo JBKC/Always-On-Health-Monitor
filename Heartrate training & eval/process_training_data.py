@@ -42,7 +42,7 @@ def save_data(s, data_dict, root_dir, filename):
 
         return smoothed
 
-    def butter_filter(signal, lowcut=0.1, highcut=10, fs=32, order=4):
+    def butter_filter(signal, lowcut=0.3, highcut=10, fs=32, order=4):
         """
         Applies Butterworth filter
         :param signal: input signal of shape (n_channels, n_samples)
@@ -79,14 +79,14 @@ def save_data(s, data_dict, root_dir, filename):
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
 
         # filter all the inputs - currently used for activity detection
-        if filename == "ppg_dalia_dict_filtered":
-            print(data_dict[s]['ppg'].shape)
+        # if filename == "ppg_dalia_dict_filtered":
+        print(data_dict[s]['ppg'].shape)
 
-            # plt.plot(data_dict[s]['acc'][1,:])
-            data_dict[s]['ppg'] = butter_filter(signal=data_dict[s]['ppg'])
-            data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'])
-            # plt.plot(data_dict[s]['acc'][1,:])
-            # plt.show()
+        # plt.plot(data_dict[s]['acc'][1,:])
+        data_dict[s]['ppg'] = butter_filter(signal=data_dict[s]['ppg'])
+        data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'])
+        # plt.plot(data_dict[s]['acc'][1,:])
+        # plt.show()
 
         # window data
         data_dict = window_data(data_dict, s)
@@ -324,7 +324,7 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # comment out save or load
-    save_dict(sessions, "ppg_dalia_dict_filtered")
+    save_dict(sessions, "ppg_dalia_dict_f_0.3-10")
     # data_dict = load_dict()
 
     # pass accelerometer data through CNN & save down new filtered data
