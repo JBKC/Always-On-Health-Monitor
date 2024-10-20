@@ -79,11 +79,11 @@ class InitialBlock(nn.Module):
     '''
     Input convolutional block
     '''
-    def __init__(self):
+    def __init__(self, in_channels):
 
         super().__init__()
 
-        in_channels = 4
+        in_channels = in_channels
         pooling_size = 3
         n_out = 256
 
@@ -107,15 +107,13 @@ class AccModel(nn.Module):
     Full Model architecture
     input shape = (batch_size, n_channels, n_samples)
     '''
-    def __init__(self):
+    def __init__(self, in_channels, num_classes):
         super().__init__()
 
-        n_activities = 8
-
-        self.conv = InitialBlock()
+        self.conv = InitialBlock(in_channels)
         self.multi_kernel = MultiKernel()
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
-        self.fc = nn.Linear(256, n_activities)
+        self.fc = nn.Linear(256, num_classes)
 
     def forward(self, X):
 

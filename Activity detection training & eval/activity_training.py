@@ -30,7 +30,7 @@ def extract_activity(dict, sessions, mode):
 
         y = dict[s]['activity']
         # multiple channel input - create list containing each filtered variation of the sensor input
-        X_ppg = [dict[s]['ppg'][j] for j in dict[s]['ppg'].keys()]
+        X_ppg = [dict[s]['ppg'][j] for j in list(dict[s]['ppg'].keys())[1:]]         # ignore unfiltered (og) PPG signal
         X_acc = dict[s]['acc']
 
         # remove transient regions
@@ -50,9 +50,9 @@ def extract_activity(dict, sessions, mode):
         elif mode == 'x':
             act_dict[s]['input'] = np.concatenate((X_ppg, X_acc), axis=1)
 
-        print(act_dict[s]['input'].shape)
+        in_channels = act_dict[s]['input'].shape[1]
 
-    return act_dict
+    return act_dict, in_channels
 
 def fourier(dict, sessions):
     '''
@@ -102,7 +102,7 @@ def z_normalise(dict, sessions):
 
     return dict
 
-def train_model(dict, sessions, num_classes=8):
+def train_model(dict, sessions, in_channels, num_classes=8):
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -119,7 +119,7 @@ def train_model(dict, sessions, num_classes=8):
     batch_size = 128             # number of windows to be processed together
     n_splits = 4
 
-    model = AccModel()
+    model = AccModel(in_channels, num_classes)
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
     print(f"Number of trainable parameters: {count_parameters(model)}")
 
@@ -257,13 +257,13 @@ def main():
     # load time series dictionary
     dict = load_dict(filename='ppg_dalia_dict_ppg_crm_1')
 
-    # choose between ppg, acc or both as input
-    mode = input("PPG (p), ACC (a) or both (x): ")
+    # choose between ppg, acc or all as input
+    mode = input("PPG (p), ACC (a) or all (x): ")
     if mode not in ['p', 'a', 'x']:
         print("Error: invalid input")
 
     # ignore transient periods (not assigned an activity)
-    act_dict = extract_activity(dict, sessions, mode)
+    act_dict, in_channels = extract_activity(dict, sessions, mode)
 
     # option to convert to frequency domain
     # act_dict = fourier(act_dict, sessions)
@@ -272,7 +272,7 @@ def main():
     act_dict = z_normalise(act_dict, sessions)
 
     # train model
-    train_model(act_dict, sessions)
+    train_model(act_dict, sessions, in_channels)
 
 
 
