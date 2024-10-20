@@ -18,9 +18,10 @@ from torch.utils.data import DataLoader, TensorDataset
 # from activity_model_tcn1 import AccModel
 from activity_model_cnn2 import AccModel
 
-def extract_activity(dict, sessions):
+def extract_activity(dict, sessions, mode):
     '''
-    Remove transient regions from data - i.e. where there is no activity label
+    Remove transient regions from data - i.e. windows for which there is no activity label
+    Take corresponding activity labels and signal data
     '''
 
     act_dict = {f'{session}': {} for session in sessions}
@@ -28,21 +29,28 @@ def extract_activity(dict, sessions):
     for s in sessions:
 
         y = dict[s]['activity']
-        # 4 channel input
-        X_ppg = dict[s]['ppg']
+        # multiple channel input - create list containing each filtered variation of the sensor input
+        X_ppg = [dict[s]['ppg'][j] for j in dict[s]['ppg'].keys()]
         X_acc = dict[s]['acc']
 
         # remove transient regions
         act_idx = np.where(y != 0)[0]
         y = y[act_idx]
-        X_ppg = X_ppg[act_idx]
+        X_ppg = np.concatenate([X_ppg[i][act_idx] for i,_ in enumerate(X_ppg)], axis=1)
         X_acc = X_acc[act_idx]
 
         y = (y-1).astype(int)
 
-        # add to dictionary
+        # create input tensors
         act_dict[s]['activity'] = y
-        act_dict[s]['input'] = np.concatenate((X_ppg, X_acc), axis=1)
+        if mode == 'p':
+            act_dict[s]['input'] = X_ppg
+        elif mode == 'a':
+            act_dict[s]['input'] = X_acc
+        elif mode == 'x':
+            act_dict[s]['input'] = np.concatenate((X_ppg, X_acc), axis=1)
+
+        print(act_dict[s]['input'].shape)
 
     return act_dict
 
@@ -73,8 +81,8 @@ def fourier(dict, sessions):
 def z_normalise(dict, sessions):
     '''
     Z-normalises data for each window across each channel
-    :param X: of shape (n_windows, 3, n_samples)
-    :return X_norm: of shape (n_windows, 3, n_samples)
+    :param X: of shape (n_windows, n_channels, n_samples)
+    :return X_norm: of shape (n_windows, n_channels, n_samples)
     '''
 
     for s in sessions:
@@ -233,7 +241,7 @@ def train_model(dict, sessions, num_classes=8):
 
 def main():
 
-    def load_dict(filename='ppg_dalia_dict_f_0.3-4'):
+    def load_dict(filename):
 
         root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filepath = os.path.join(root_dir, filename)
@@ -247,10 +255,15 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # load time series dictionary
-    dict = load_dict()
+    dict = load_dict(filename='ppg_dalia_dict_ppg_crm_1')
+
+    # choose between ppg, acc or both as input
+    mode = input("PPG (p), ACC (a) or both (x): ")
+    if mode not in ['p', 'a', 'x']:
+        print("Error: invalid input")
 
     # ignore transient periods (not assigned an activity)
-    act_dict = extract_activity(dict, sessions)
+    act_dict = extract_activity(dict, sessions, mode)
 
     # option to convert to frequency domain
     # act_dict = fourier(act_dict, sessions)
