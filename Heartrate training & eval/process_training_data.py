@@ -1,5 +1,8 @@
 '''
 Initial file for pulling and processing training data from PPG-DaLiA dataset
+Produces 2 main dicionaries:
+- ppg_dalia_dict: dictionary of raw PPG-DaLia data
+- ppg_filt_dict: dictionary of data post-motion artifact removal
 '''
 
 import pickle
@@ -15,7 +18,7 @@ from scipy.signal import butter, filtfilt
 import generate_adversarial_dataset
 
 
-def save_data(s, data_dict, root_dir, filename):
+def save_data(s, data_dict, root_dir):
     '''
     Pull raw data from PPG Dalia files and save down to a dictionary
     :param s: session name
@@ -23,70 +26,21 @@ def save_data(s, data_dict, root_dir, filename):
     :return: data_dict: filled dictionary with all PPG Dalia data
     '''
 
-    def mean_smooth(signal, window_size=8):
-        """
-        Applies mean smoothing filter
-        :param signal: input signal of shape (n_channels, n_samples)
-        :param window_size: size of window over which to apply smoothing
-        :return smoothed: smoothed signal of shape (n_channels, n_samples)
-        """
-
-        # smoothing kernel
-        kernel = np.ones(window_size) / window_size
-
-        # Apply convolution along the last dimension for each channel
-        smoothed = np.array([np.convolve(channel, kernel, mode='same') for channel in signal])
-        # plt.plot(signal[0,:])
-        # plt.plot(smoothed[0,:])
-        # plt.show()
-
-        return smoothed
-
-    def butter_filter(signal, lowcut=0.3, highcut=10, fs=32, order=4):
-        """
-        Applies Butterworth filter
-        :param signal: input signal of shape (n_channels, n_samples)
-        :return smoothed: smoothed signal of shape (n_channels, n_samples)
-        """
-
-        nyquist = 0.5 * fs  # Nyquist frequency
-        low = lowcut / nyquist
-        high = highcut / nyquist
-
-        # Create the Butterworth bandpass filter
-        b, a = butter(order, [low, high], btype='bandpass')
-
-        # Apply the filter to the signal using filtfilt (zero-phase filtering)
-        filtered = np.array([filtfilt(b, a, channel) for channel in signal])
-
-        return filtered
-
-    # pull raw data
     with open(f'{root_dir}/ppg+dalia/{s}/{s}.pkl', 'rb') as file:
 
         print(f'saving {s}')
         data = pickle.load(file, encoding='latin1')
 
+        # get raw data from pkl file
         data_dict[s]['ppg'] = data['signal']['wrist']['BVP'][::2]     # downsample PPG to match fs_acc
         data_dict[s]['acc'] = data['signal']['wrist']['ACC']
         data_dict[s]['label'] = (data['label'])                       # ground truth EEG
         data_dict[s]['activity'] = data['activity']
-
         # alignment corrections
         data_dict[s]['ppg'] = data_dict[s]['ppg'][38:,:].T              # (1, n_samples)
         data_dict[s]['acc'] = data_dict[s]['acc'][:-38,:].T             # (3, n_samples)
         data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
-
-        # filter all the inputs - currently used for activity detection
-        # if filename == "ppg_dalia_dict_filtered":
-        print(data_dict[s]['ppg'].shape)
-
-        # plt.plot(data_dict[s]['acc'][1,:])
-        data_dict[s]['ppg'] = butter_filter(signal=data_dict[s]['ppg'])
-        data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'])
-        # plt.plot(data_dict[s]['acc'][1,:])
-        # plt.show()
 
         # window data
         data_dict = window_data(data_dict, s)
@@ -290,7 +244,7 @@ def ma_removal(data_dict, sessions):
 
 def main():
 
-    def save_dict(sessions, filename='ppg_dalia_dict'):
+    def save_dict(sessions, filename):
 
         # create dictionary to hold all data
         data_dict = {f'{session}': {} for session in sessions}
@@ -300,7 +254,7 @@ def main():
 
         # iterate over sessions
         for session in sessions:
-            data_dict = save_data(session, data_dict, root_dir, filename)
+            data_dict = save_data(session, data_dict, root_dir)
 
         # save dictionary
 
@@ -324,9 +278,9 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # comment out save or load
-    save_dict(sessions, "ppg_dalia_dict_f_0.3-10")
-    # data_dict = load_dict()
+    save_dict(sessions, "ppg_dalia_dict")
 
+    # data_dict = load_dict()
     # pass accelerometer data through CNN & save down new filtered data
     # ma_removal(data_dict, sessions)
 
