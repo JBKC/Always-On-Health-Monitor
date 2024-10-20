@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from accelerometer_cnn import AdaptiveLinearModel
+from scipy.signal import butter, filtfilt
 import generate_adversarial_dataset
 
 
@@ -25,9 +26,9 @@ def save_data(s, data_dict, root_dir, filename):
     def mean_smooth(signal, window_size=8):
         """
         Applies mean smoothing filter
-        :param signal: input accelerometer signals of shape (n_channels, n_samples)
+        :param signal: input signal of shape (n_channels, n_samples)
         :param window_size: size of window over which to apply smoothing
-        :return smoothed: smoothed accelerometer signals of shape (n_channels, n_samples)
+        :return smoothed: smoothed signal of shape (n_channels, n_samples)
         """
 
         # smoothing kernel
@@ -39,10 +40,26 @@ def save_data(s, data_dict, root_dir, filename):
         # plt.plot(smoothed[0,:])
         # plt.show()
 
-        print(f'SMOOTHIE:{smoothed.shape}')
-
         return smoothed
 
+    def butter_filter(signal, lowcut=0.1, highcut=10, fs=32, order=4):
+        """
+        Applies Butterworth filter
+        :param signal: input signal of shape (n_channels, n_samples)
+        :return smoothed: smoothed signal of shape (n_channels, n_samples)
+        """
+
+        nyquist = 0.5 * fs  # Nyquist frequency
+        low = lowcut / nyquist
+        high = highcut / nyquist
+
+        # Create the Butterworth bandpass filter
+        b, a = butter(order, [low, high], btype='bandpass')
+
+        # Apply the filter to the signal using filtfilt (zero-phase filtering)
+        filtered = np.array([filtfilt(b, a, channel) for channel in signal])
+
+        return filtered
 
     # pull raw data
     with open(f'{root_dir}/ppg+dalia/{s}/{s}.pkl', 'rb') as file:
@@ -61,11 +78,15 @@ def save_data(s, data_dict, root_dir, filename):
         data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
 
-        # apply mean-smoothing filter to all input - currently used for activity detection
-        if filename == "ppg_dalia_dict_mf":
+        # filter all the inputs - currently used for activity detection
+        if filename == "ppg_dalia_dict_filtered":
+            print(data_dict[s]['ppg'].shape)
 
-            data_dict[s]['ppg'] = mean_smooth(signal=data_dict[s]['ppg'])
-            data_dict[s]['acc'] = mean_smooth(signal=data_dict[s]['acc'])
+            # plt.plot(data_dict[s]['acc'][1,:])
+            data_dict[s]['ppg'] = butter_filter(signal=data_dict[s]['ppg'])
+            data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'])
+            # plt.plot(data_dict[s]['acc'][1,:])
+            # plt.show()
 
         # window data
         data_dict = window_data(data_dict, s)
@@ -90,7 +111,7 @@ def window_data(data_dict, s):
 
     # sampling rates
     fs = {
-        'ppg': 32,                  # fs_ppg = 64 in paper but downsampled to match acc
+        'ppg': 32,                  # fs_ppg = 64 in paper but downsampled to match accelerometer
         'acc': 32,
         'activity': 4
     }
@@ -303,7 +324,7 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # comment out save or load
-    save_dict(sessions, "ppg_dalia_dict_mf")
+    save_dict(sessions, "ppg_dalia_dict_filtered")
     # data_dict = load_dict()
 
     # pass accelerometer data through CNN & save down new filtered data
