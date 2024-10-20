@@ -1,5 +1,5 @@
 '''
-Initial file for pulling and processing training data from PPG-DaLiA dataset
+Pull, filter and experiment with feature extraction for activity detection
 '''
 
 import pickle
@@ -10,9 +10,7 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from accelerometer_cnn import AdaptiveLinearModel
 from scipy.signal import butter, filtfilt
-import generate_adversarial_dataset
 
 
 def save_data(s, data_dict, root_dir, filename):
@@ -42,29 +40,54 @@ def save_data(s, data_dict, root_dir, filename):
 
         return smoothed
 
-    def butter_filter(signal, lowcut=0.3, highcut=10, fs=32, order=4):
+    def butter_filter(signal, btype, lowcut=None, highcut=None, fs=32, order=5):
         """
         Applies Butterworth filter
         :param signal: input signal of shape (n_channels, n_samples)
         :return smoothed: smoothed signal of shape (n_channels, n_samples)
         """
 
-        nyquist = 0.5 * fs  # Nyquist frequency
-        low = lowcut / nyquist
-        high = highcut / nyquist
+        nyquist = 0.5 * fs
 
-        # Create the Butterworth bandpass filter
-        b, a = butter(order, [low, high], btype='bandpass')
+        if btype == 'bandpass':
+            low = lowcut / nyquist
+            high = highcut / nyquist
+            b, a = butter(order, [low, high], btype=btype)
+        elif btype == 'lowpass':
+            high = highcut / nyquist
+            b, a = butter(order, high, btype=btype)
+        elif btype == 'highpass':
+            low = lowcut / nyquist
+            b, a = butter(order, low, btype=btype)
 
-        # Apply the filter to the signal using filtfilt (zero-phase filtering)
+        # apply filter using filtfilt (zero-phase filtering)
         filtered = np.array([filtfilt(b, a, channel) for channel in signal])
 
         return filtered
 
+    def plot_inputs(signals,fs=32,start=3000,period=5):
+        '''
+        Plot arbitrary period within input signals to compare filtering effects
+        :param signals: list of signals to plot
+        :param start time (s) - max c.75000
+        :param period (s)
+        '''
+
+        start = start * fs
+        period = period * fs
+
+        fig, axs = plt.subplots(4, 1, figsize=(8, 8))
+        for i, ax in enumerate(axs):
+            ax.plot(signals[i][0,start:start+period])
+        plt.tight_layout()
+        plt.show()
+
+        return
+
 
     with open(f'{root_dir}/ppg+dalia/{s}/{s}.pkl', 'rb') as file:
 
-        print(f'saving {s}')
+        print(f'processing {s}')
         data = pickle.load(file, encoding='latin1')
 
         # get raw data from pkl file
@@ -78,14 +101,19 @@ def save_data(s, data_dict, root_dir, filename):
         data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
 
-        # applying filtering to inputs (used for activity detection)
-        print(data_dict[s]['ppg'].shape)
+        # applying filtering ranges to PPG
+        data_dict[s]['ppg_c'] = butter_filter(signal=data_dict[s]['ppg'],btype='bandpass',lowcut=0.5,highcut=4)       # cardiac
+        data_dict[s]['ppg_r'] = butter_filter(signal=data_dict[s]['ppg'],btype='bandpass',lowcut=0.2,highcut=0.35)    # respiratory
+        data_dict[s]['ppg_m'] = butter_filter(signal=data_dict[s]['ppg'],btype='highpass',lowcut=0.1)                 # motion artifacts
 
-        # plt.plot(data_dict[s]['acc'][1,:])
-        data_dict[s]['ppg'] = butter_filter(signal=data_dict[s]['ppg'])
-        data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'])
-        # plt.plot(data_dict[s]['acc'][1,:])
-        # plt.show()
+        print(data_dict[s]['ppg_c'].shape)
+
+        # plot
+        plot_inputs([ data_dict[s]['ppg'],data_dict[s]['ppg_c'],data_dict[s]['ppg_r'],data_dict[s]['ppg_m'] ])
+
+
+        # data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'])
+
 
         # window data
         data_dict = window_data(data_dict, s)
@@ -171,122 +199,6 @@ def z_normalise(X):
 
     return X_norm, ms, stds
 
-def undo_normalisation(X_norm, ms, stds):
-    '''
-    Transform cleaned PPG signal back into original space following filtering
-    :params:
-        X_norm: of shape (n_windows, 1, 256)
-        ms (means): of shape (n_windows, 4)
-        stds (standard deviations) of shape (n_windows, 4)
-    :return:
-        X: of shape (n_windows, 1, 256)
-    '''
-
-    ms_reshaped = ms[:, :, np.newaxis]
-    stds_reshaped = stds[:, :, np.newaxis]
-
-    return (X_norm * np.where(stds_reshaped != 0, stds_reshaped, 1)) + ms_reshaped
-
-def ma_removal(data_dict, sessions):
-    '''
-    Remove session-specific motion artifacts from raw PPG data by training on accelerometer_cnn
-    Save down to dictionary "ppg_filt_dict"
-    :param data_dict: dictionary containing ppg, acc, label and activity data for each session
-    :param s: list of sessions
-    :return: ppg_filt_dict: dictionary containing bvp (cleaned ppg) along with acc, label and activity
-    '''
-
-    # ppg_dalia_dict filtered for motion artifacts
-
-    ppg_filt_dict = {f'{session}': {} for session in sessions}
-
-    # initialise CNN model
-    n_epochs = 1000
-    model = AdaptiveLinearModel()
-    optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
-
-    for s in sessions:
-
-        X_BVP = []  # filtered PPG data
-
-        # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
-        X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
-
-        # find indices of activity changes (marks batches)
-        idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
-
-        # add indices of start and end points
-        idx = np.insert(idx, 0, 0)
-        idx = np.insert(idx, idx.size, data_dict[s]['label'].shape[0])
-
-        initial_state = model.state_dict()
-
-        # iterate over activities (batches)
-        for i in range(idx.size - 1):
-
-            model.load_state_dict(initial_state)
-
-            # create batches
-            X_batch = X[idx[i]: idx[i + 1], :, :]  # splice X into current activity
-
-            # batch Z-normalisation
-            X_batch, ms, stds = z_normalise(X_batch)
-
-            X_batch = np.expand_dims(X_batch, axis=1)          # add channel dimension
-            X_batch = torch.from_numpy(X_batch).float()
-
-            # accelerometer data are inputs:
-            x_acc = X_batch[:, :, 1:, :]                 # (batch_size, 1, 3, 256)
-            # PPG data are targets:
-            x_ppg = X_batch[:, :, :1, :]                 # (batch_size, 1, 1, 256)
-
-            # training loop
-            for epoch in range(n_epochs):
-
-                # forward pass through CNN to get x_ma (motion artifact estimate)
-                x_ma = model(x_acc)
-                # compute loss against raw PPG data
-                loss = model.adaptive_loss(y_true=x_ppg, y_pred=x_ma)
-                # backprop
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                print(f'Session {s}, Batch: [{i + 1}/{idx.size - 1}], '
-                      f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
-
-            # subtract the motion artifact estimate from raw signal to extract cleaned BVP
-            with torch.no_grad():
-                x_bvp = x_ppg[:, 0, 0, :] - x_ma
-
-            # get signal into original shape: (n_windows, 1, 256)
-            x_bvp = torch.unsqueeze(x_bvp, dim=1).numpy()
-
-            # denormalise
-            x_bvp = undo_normalisation(x_bvp, ms, stds)
-            # keep only BVP (remove ACC)
-            x_bvp = np.expand_dims(x_bvp[:,0,:], axis=1)
-
-            # append filtered batch
-            X_BVP.append(x_bvp)
-
-        # add to dictionary
-        X_BVP = np.concatenate(X_BVP, axis=0)
-
-        ppg_filt_dict[s]['bvp'] = X_BVP
-        ppg_filt_dict[s]['acc'] = data_dict[s]['acc']
-        ppg_filt_dict[s]['label'] = data_dict[s]['label']
-        ppg_filt_dict[s]['activity'] = data_dict[s]['activity']
-
-        print(f"{s} shape: {ppg_filt_dict[s]['bvp'].shape}")
-
-    # save dictionary
-    with open('ppg_filt_dict', 'wb') as file:
-        pickle.dump(ppg_filt_dict, file)
-    print(f'Data dictionary saved to ppg_filt_dict')
-
-    return
-
 def main():
 
     def save_dict(sessions, filename='ppg_dalia_dict'):
@@ -309,25 +221,12 @@ def main():
 
         return
 
-    def load_dict(filename='ppg_dalia_dict'):
-
-        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filepath = os.path.join(root_dir, filename)
-
-        with open(filepath, 'rb') as file:
-            data_dict = pickle.load(file)
-            print(f'Data dictionary loaded from {filename}')
-
-            return data_dict
 
     sessions = [f'S{i}' for i in range(1, 16)]
 
-    # comment out save or load
+
     save_dict(sessions, "ppg_dalia_dict_f_0.3-10")
 
-    # data_dict = load_dict()
-    # pass accelerometer data through CNN & save down new filtered data
-    # ma_removal(data_dict, sessions)
 
 
 if __name__ == '__main__':
