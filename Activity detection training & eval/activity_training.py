@@ -22,7 +22,42 @@ def extract_activity(dict, sessions, mode):
     '''
     Remove transient regions from data - i.e. windows for which there is no activity label
     Take corresponding activity labels and signal data
+    0 = sitting still
+    1 = stairs
+    2 = table football
+    3 = cycling
+    4 = driving
+    5 = lunch break
+    6 = walking
+    7  = working at desk
     '''
+
+    def plot_inputs(channels, label):
+        '''
+        Plot arbitrary period within input signals to compare filtering effects for a given activity label
+        :param channels: contains the signals in shape (n_windows, n_channels, n_samples)
+        :param labels: array of y axis labels of length (n_windows)
+        '''
+
+        # add labels of interest
+        labels = [0, 3, 4]
+        # list of arrays containing indices of activities
+        act_idxs = [np.where(label == i)[0] for i in labels]
+
+        fig, axs = plt.subplots(nrows=channels.shape[1], ncols=len(act_idxs), figsize=(10, 7))
+
+        for i, channel in enumerate(range(channels.shape[1])):  # Iterate over channels (rows)
+            for j, idxs in enumerate(act_idxs):  # Iterate over activity indices (columns)
+                if len(idxs) > 0:
+                    # plot arbitrary 8-second window from each activity
+                    axs[i, j].plot(channels[idxs[10], channel, :])
+                    axs[i, j].set_title(f'Channel {i}, Activity {labels[j]}')
+
+        plt.tight_layout()
+        plt.show()
+
+        return
+
 
     act_dict = {f'{session}': {} for session in sessions}
 
@@ -34,7 +69,7 @@ def extract_activity(dict, sessions, mode):
         X_acc = dict[s]['acc']
 
         # remove transient regions
-        act_idx = np.where(y != 0)[0]
+        act_idx = np.where(y != 0)
         y = y[act_idx]
         X_ppg = np.concatenate([X_ppg[i][act_idx] for i,_ in enumerate(X_ppg)], axis=1)
         X_acc = X_acc[act_idx]
@@ -51,6 +86,8 @@ def extract_activity(dict, sessions, mode):
             act_dict[s]['input'] = np.concatenate((X_ppg, X_acc), axis=1)
 
         in_channels = act_dict[s]['input'].shape[1]
+
+        plot_inputs(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
 
     return act_dict, in_channels
 
@@ -262,7 +299,7 @@ def main():
     if mode not in ['p', 'a', 'x']:
         print("Error: invalid input")
 
-    # ignore transient periods (not assigned an activity)
+    # ignore transient periods (not assigned an activity) to assign labels
     act_dict, in_channels = extract_activity(dict, sessions, mode)
 
     # option to convert to frequency domain
