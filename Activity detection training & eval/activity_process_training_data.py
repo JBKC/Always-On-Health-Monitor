@@ -13,7 +13,7 @@ import torch.optim as optim
 from scipy.signal import butter, filtfilt
 
 
-def save_data(s, data_dict, root_dir, filename):
+def save_data(s, data_dict, root_dir):
     '''
     Pull raw data from PPG Dalia files and save down to a dictionary
     :param s: session name
@@ -78,7 +78,7 @@ def save_data(s, data_dict, root_dir, filename):
 
         fig, axs = plt.subplots(4, 1, figsize=(8, 8))
         for i, ax in enumerate(axs):
-            ax.plot(signals[i][0,start:start+period])
+            ax.plot(signals[i][0,start:start+period],color='black')
         plt.tight_layout()
         plt.show()
 
@@ -101,24 +101,25 @@ def save_data(s, data_dict, root_dir, filename):
         data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
 
-        # applying filtering ranges to PPG
-        data_dict[s]['ppg_c'] = butter_filter(signal=data_dict[s]['ppg'],btype='bandpass',lowcut=0.5,highcut=4)       # cardiac
-        data_dict[s]['ppg_r'] = butter_filter(signal=data_dict[s]['ppg'],btype='bandpass',lowcut=0.2,highcut=0.35)    # respiratory
-        data_dict[s]['ppg_m'] = butter_filter(signal=data_dict[s]['ppg'],btype='highpass',lowcut=0.1)                 # motion artifacts
+        # applying filtering ranges to PPG signal
+        data_dict[s]['ppg'] = {
+            'og': data_dict[s]['ppg'],
+            'c': butter_filter(signal=data_dict[s]['ppg'], btype='bandpass', lowcut=0.5, highcut=4),   # cardiac
+            'r': butter_filter(signal=data_dict[s]['ppg'],btype='bandpass',lowcut=0.2,highcut=0.35),   # respiratory
+            'm': butter_filter(signal=data_dict[s]['ppg'],btype='highpass',lowcut=4)                   # motion artifacts
+        }
 
-        print(data_dict[s]['ppg_c'].shape)
-
-        # plot
-        plot_inputs([ data_dict[s]['ppg'],data_dict[s]['ppg_c'],data_dict[s]['ppg_r'],data_dict[s]['ppg_m'] ])
-
+        # plot_inputs([ data_dict[s]['ppg'],data_dict[s]['ppg_c'],data_dict[s]['ppg_r'],data_dict[s]['ppg_m'] ])
 
         # data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'])
-
 
         # window data
         data_dict = window_data(data_dict, s)
 
-        print(data_dict[s]['ppg'].shape)
+        print(data_dict[s]['ppg']['og'].shape)
+        print(data_dict[s]['ppg']['c'].shape)
+        print(data_dict[s]['ppg']['m'].shape)
+        print(data_dict[s]['ppg']['r'].shape)
         print(data_dict[s]['acc'].shape)
         print(data_dict[s]['label'].shape)
         print(data_dict[s]['activity'].shape)
@@ -150,58 +151,43 @@ def window_data(data_dict, s):
 
         window = 8*f                        # size of window
         step = 2*f                          # size of step
-        data = data_dict[s][k]
+        values = data_dict[s][k].copy()     # extract dictionary values of current key (important to make copy so sub-dictionaries don't autoupdate the variable)
+
 
         if k == 'ppg':
             # (1, n_samples) -> (n_windows, 1, 256)
-            data_dict[s][k] = np.zeros((n_windows, 1, window))
-            for i in range(n_windows):
-                start = i * step
-                end = start + window
-                data_dict[s][k][i, :, :] = data[:, start:end]
+
+            # initialize sub-dictionaries
+            for j in data_dict[s][k].keys():
+                data_dict[s][k][j] = np.zeros((n_windows, 1, window))
+
+                # loop over windows
+                for i in range(n_windows):
+                    start = i * step
+                    end = start + window
+                    # apply over sub-dictionaries
+                    data_dict[s][k][j][i, :, :] = values[j][:, start:end]
+
 
         if k == 'acc':
             data_dict[s][k] = np.zeros((n_windows, 3, window))
             for i in range(n_windows):
                 start = i * step
                 end = start + window
-                data_dict[s][k][i, :, :] = data[:, start:end]
+                data_dict[s][k][i, :, :] = values[:, start:end]
 
         if k == 'activity':
             data_dict[s][k] = np.zeros((n_windows,))
             for i in range(n_windows):
                 start = i * step
                 end = start + window
-                data_dict[s][k][i] = data[0, start:end][0]             # take first value as value of whole window
+                data_dict[s][k][i] = values[0, start:end][0]             # take first value as value of whole window
 
     return data_dict
 
-def z_normalise(X):
-    '''
-    Z-normalises data for all windows, across each channel, using vectorisation
-    :param X: of shape (n_windows, 4, 256)
-    :return:
-        X_norm: of shape (n_windows, 4, 256)
-        ms (means): of shape (n_windows, 4)
-        stds (standard deviations) of shape (n_windows, 4)
-    '''
-
-    # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4)
-    ms = np.mean(X, axis=2)
-    stds = np.std(X, axis=2)
-
-    # reshape ms and stds to allow broadcasting
-    ms_reshaped = ms[:, :, np.newaxis]
-    stds_reshaped = stds[:, :, np.newaxis]
-
-    # Z-normalisation
-    X_norm = (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
-
-    return X_norm, ms, stds
-
 def main():
 
-    def save_dict(sessions, filename='ppg_dalia_dict'):
+    def save_dict(sessions, filename):
 
         # create dictionary to hold all data
         data_dict = {f'{session}': {} for session in sessions}
@@ -211,7 +197,7 @@ def main():
 
         # iterate over sessions
         for session in sessions:
-            data_dict = save_data(session, data_dict, root_dir, filename)
+            data_dict = save_data(session, data_dict, root_dir)
 
         # save dictionary
 
@@ -225,7 +211,7 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
 
-    save_dict(sessions, "ppg_dalia_dict_f_0.3-10")
+    save_dict(sessions, "ppg_dalia_dict_ppg_crm_1")
 
 
 
