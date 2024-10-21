@@ -58,12 +58,13 @@ def extract_activity(dict, sessions, mode):
 
         return
 
-    def plot_fft(channels, label, fs=32, cutoff=0.1):
+    def plot_fft(channels, label, fs=32, cutoff=2):
         '''
         Plot averaged frequency domain plots for each activity
         :param channels: contains the accelerometer data in shape (n_windows, n_channels, n_samples)
         :param labels: array of y axis labels of length (n_windows)
         '''
+
 
         n_channels = channels.shape[1]
         n_samples = channels.shape[-1]
@@ -167,6 +168,7 @@ def fourier(dict, sessions):
         fft_dict[s]['activity'] = dict[s]['activity']
 
     return fft_dict
+
 
 def z_normalise(dict, sessions):
     '''
