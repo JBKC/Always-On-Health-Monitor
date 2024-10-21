@@ -13,6 +13,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+import training_analysis
 
 # switch between models here
 # from activity_model_tcn1 import AccModel
@@ -138,10 +139,10 @@ def extract_activity(dict, sessions, mode):
         in_channels = act_dict[s]['input'].shape[1]
 
         # plotting options
-        if mode == 'p':
-            plot_inputs(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
-        if mode == 'a':
-            plot_fft(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
+        # if mode == 'p':
+        #     plot_inputs(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
+        # if mode == 'a':
+        #     plot_fft(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
 
     return act_dict, in_channels
 
@@ -318,6 +319,9 @@ def train_model(dict, sessions, in_channels, num_classes=8):
             plt.legend()
             plt.show()
 
+            # post-training analysis
+            training_analysis.plot_weight_dist()
+
             # test on held-out session after all epochs complete
             with torch.no_grad():
                 pred_test = model(X_test)
@@ -347,7 +351,7 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # load time series dictionary
-    dict = load_dict(filename='ppg_dalia_dict_ppg_crm_1')
+    dict = load_dict(filename='ppg_dalia_dict_ppg_crm_v1')
 
     # choose between ppg, acc or all as input
     mode = input("PPG (p), ACC (a) or all (x): ")
