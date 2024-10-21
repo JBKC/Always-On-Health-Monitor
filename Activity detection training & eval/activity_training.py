@@ -148,7 +148,7 @@ def extract_activity(dict, sessions, mode):
 
 def fourier(dict, sessions):
     '''
-    Create frequency-domain dictionary for accelerometer only
+    Create frequency-domain dictionary
     :param dict: time series dictionary
     :param sessions: list of sessions
     :return fft_dict: frequency domain dictionary
@@ -158,14 +158,16 @@ def fourier(dict, sessions):
 
     for s in sessions:
 
-        X = dict[s]['acc']
+        X = dict[s]['input']
         fft_acc = np.abs(np.fft.fft(X, axis=-1))
         # take relevant part of FFT
         fft_acc = fft_acc[:,:,1:X.shape[-1]//2+1]
 
-        # plt.plot(fft_dict[s]['acc'][2000, 0, :])
+        # plt.plot(fft_acc[10, 0, :])
         # plt.show()
 
+        # update dictionary
+        fft_dict[s]['input'] = fft_acc
         fft_dict[s]['activity'] = dict[s]['activity']
 
     return fft_dict
@@ -208,7 +210,7 @@ def train_model(dict, sessions, in_channels, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 20
+    n_epochs = 100
     batch_size = 128             # number of windows to be processed together
     n_splits = 4
 
@@ -307,7 +309,6 @@ def train_model(dict, sessions, in_channels, num_classes=8):
                     print(f'Test session: S{s + 1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {loss_val.item():.4f}')
 
                 val_losses.append(loss_val.item())
-                ### reinsert early stopping criteria here ###
 
             split_time = time.time()
             print("SINGLE SPLIT COMPLETE: time ", (split_time - start_time) / 3600, " hours.")
@@ -319,8 +320,8 @@ def train_model(dict, sessions, in_channels, num_classes=8):
             plt.legend()
             plt.show()
 
-            # post-training analysis
-            training_analysis.plot_weight_dist()
+            # post-training analysis (single split)
+            training_analysis.plot_weight_dist(model)
 
             # test on held-out session after all epochs complete
             with torch.no_grad():
