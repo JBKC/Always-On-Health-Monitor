@@ -40,9 +40,9 @@ def extract_activity(dict, sessions, mode):
         '''
 
         # add labels of interest
-        labels = [0, 3, 4]
+        act_labels = [0, 3, 4]
         # list of arrays containing indices of activities
-        act_idxs = [np.where(label == i)[0] for i in labels]
+        act_idxs = [np.where(label == i)[0] for i in act_labels]
 
         fig, axs = plt.subplots(nrows=channels.shape[1], ncols=len(act_idxs), figsize=(10, 7))
 
@@ -51,13 +51,62 @@ def extract_activity(dict, sessions, mode):
                 if len(idxs) > 0:
                     # plot arbitrary 8-second window from each activity
                     axs[i, j].plot(channels[idxs[10], channel, :])
-                    axs[i, j].set_title(f'Channel {i}, Activity {labels[j]}')
+                    axs[i, j].set_title(f'Channel {i}, Activity {act_labels[j]}')
 
         plt.tight_layout()
         plt.show()
 
         return
 
+    def plot_fft(channels, label, fs=32, cutoff=0.1):
+        '''
+        Plot averaged frequency domain plots for each activity
+        :param channels: contains the accelerometer data in shape (n_windows, n_channels, n_samples)
+        :param labels: array of y axis labels of length (n_windows)
+        '''
+
+        n_channels = channels.shape[1]
+        n_samples = channels.shape[-1]
+        act_labels = np.unique(label)
+
+        fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(10, 7))
+
+        # iterate over activities
+        for i, activity in enumerate(act_labels):
+            act_idxs = np.where(label == activity)[0]
+
+            avg_ffts = np.zeros((n_channels, n_samples // 2))
+
+            # iterate over accelerometer channels
+            for channel in range(n_channels):
+                ffts = []
+                for idx in act_idxs:
+                    # take FFT of each window
+                    fft = np.fft.fft(channels[idx, channel, :])
+                    fft = np.abs(fft)[:n_samples // 2]
+                    ffts.append(fft)
+
+                # compute mean FFT across all windows for each channel
+                avg_ffts[channel] = np.mean(ffts, axis=0)
+
+            # get frequencies
+            freqs = np.fft.fftfreq(n_samples, 1 / fs)[:n_samples // 2]
+            keep_idx = np.where(freqs > cutoff)
+            freqs = freqs[keep_idx]
+
+            ax = axs[i // 4, i % 4]
+            for channel in range(n_channels):
+                ax.plot(freqs, avg_ffts[channel][keep_idx], label=f'Channel {channel}')
+
+            ax.set_title(f'Activity {activity}')
+            ax.set_xlabel('Frequency (Hz)')
+            ax.set_ylabel('Amplitude')
+            ax.legend(loc='upper right')
+
+        plt.tight_layout()
+        plt.show()
+
+        return
 
     act_dict = {f'{session}': {} for session in sessions}
 
@@ -87,7 +136,11 @@ def extract_activity(dict, sessions, mode):
 
         in_channels = act_dict[s]['input'].shape[1]
 
-        plot_inputs(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
+        # plotting options
+        if mode == 'p':
+            plot_inputs(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
+        if mode == 'a':
+            plot_fft(channels=act_dict[s]['input'], label=act_dict[s]['activity'])
 
     return act_dict, in_channels
 
