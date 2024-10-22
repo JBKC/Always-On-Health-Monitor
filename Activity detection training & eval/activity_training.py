@@ -272,7 +272,7 @@ def train_model(dict, sessions, in_channels, num_classes=8):
             train_losses = []
             val_losses = []
 
-            hook = training_analysis.register_hook(model.conv.conv1)         # forward hook for activation maps
+            hook = training_analysis.register_hook(model.initial_block)         # forward hook for activation maps
 
             # training loop
             for epoch in range(n_epochs):
@@ -313,8 +313,8 @@ def train_model(dict, sessions, in_channels, num_classes=8):
                 val_losses.append(loss_val.item())
 
                 ### training analysis - plot activations at the end of each epoch
-                activation_map = training_analysis.activations[model.conv1]
-                training_analysis.plot_activation_maps(activation_map)
+                activation_map = training_analysis.activations[model.initial_block]
+                training_analysis.plot_activation_map(activation_map)
 
             hook.remove()
 

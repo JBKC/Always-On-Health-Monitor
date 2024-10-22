@@ -3,6 +3,7 @@ File containing various analysis tools for during and after training
 '''
 
 import torch
+import numpy as np
 import matplotlib.pyplot as plt
 
 def plot_weight_dist(model):
@@ -32,15 +33,25 @@ def register_hook(layer):
     '''
     return layer.register_forward_hook(forward_hook)
 
-def plot_activation_maps(activation_map):
+def plot_activation_map(activation_map):
     '''
-    Plot the activation maps from a given layer
+    Plot the heatmap of the activations for each filter in the given layer as a single grid
     '''
-    for filter_idx in range(activation_map.shape[1]):  # Iterate over filters (channels)
-        plt.figure(figsize=(8, 2))
-        plt.plot(activation_map[0, filter_idx].numpy())  # Plot activations for the first input (batch index 0)
-        plt.title(f"Activation Map - Filter {filter_idx}")
-        plt.show()
+    # Take the first input in the batch and detach from the computational graph
+    activation_map = activation_map[0].detach().cpu().numpy()  # Shape: (num_filters, num_samples)
+
+    # Normalize the activation values to the range [-1, 1] for consistent heatmap scaling
+    activation_map_normalized = activation_map / np.max(np.abs(activation_map))  # Normalize based on absolute max
+
+    # Plot the heatmap
+    plt.figure(figsize=(8, 6))  # Adjust size to make the heatmap square
+    plt.imshow(activation_map_normalized, aspect='auto', cmap='seismic', interpolation='nearest')
+    plt.colorbar(label='Activation Intensity')
+
+    plt.title(f"Activation Map Grid (Filters vs Samples)")
+    plt.xlabel('Sequence Position (Samples)')
+    plt.ylabel('Filter Index')
+    plt.show()
 
 
 

@@ -39,7 +39,7 @@ class SingleBlock(nn.Module):
         # upscale to match input
         out = self.conv1x1(out)
         # add residual
-        out = F.relu(self.bn2(out + X))
+        out = F.elu(self.bn2(out + X))
 
         return X
 
@@ -49,21 +49,20 @@ class MultiKernel(nn.Module):
     Series of repeating Inception-style blocks
     '''
 
-    def __init__(self):
+    def __init__(self, out_channels):
 
         super().__init__()
 
-        n_filters = 4
-        n_out = 256
+        bottleneck = 4              # n_filters in reduction for each branch
         n_blocks = 3
 
         # create stacked structure of Inception blocks
         self.blocks = nn.ModuleList([
-            SingleBlock(in_channels=n_out, n_filters=n_filters)
+            SingleBlock(in_channels=out_channels, n_filters=bottleneck)
             for _ in range(n_blocks)
         ])
 
-        self.bn = nn.BatchNorm1d(n_out)
+        self.bn = nn.BatchNorm1d(out_channels)
 
 
     def forward(self, X):
@@ -77,27 +76,25 @@ class MultiKernel(nn.Module):
 
 class InitialBlock(nn.Module):
     '''
-    Input convolutional block
+    Input convolutional block - "conv.conv1"
     '''
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, out_channels):
 
         super().__init__()
 
-        in_channels = in_channels
         pooling_size = 3
-        n_out = 256
 
-        self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=n_out,
+        self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=out_channels,
                                      kernel_size=1,stride=1)
 
-        self.bn = nn.BatchNorm1d(num_features=n_out)
+        self.bn = nn.BatchNorm1d(num_features=out_channels)
         self.pooling = nn.MaxPool1d(kernel_size=pooling_size,
                                     padding=(pooling_size-1)//2 if pooling_size % 2 == 0 else pooling_size//2)
 
     def forward(self, X):
 
         X = self.bn(self.conv1(X))
-        X = self.pooling(F.relu(X))
+        X = self.pooling(F.elu(X))
 
         return X
 
@@ -110,15 +107,17 @@ class AccModel(nn.Module):
     def __init__(self, in_channels, num_classes):
         super().__init__()
 
-        self.conv = InitialBlock(in_channels)
-        self.multi_kernel = MultiKernel()
+        out_channels = 32                          # number of filters to apply to each convolution throughout model
+
+        self.initial_block = InitialBlock(in_channels, out_channels)
+        self.multi_kernel = MultiKernel(out_channels)
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
-        self.fc = nn.Linear(256, num_classes)
+        self.fc = nn.Linear(out_channels, num_classes)
 
     def forward(self, X):
 
         # pass through initial convolutional block
-        X = self.conv(X)
+        X = self.initial_block(X)
         # multi-kernel blocks
         X = self.multi_kernel(X)
         # global average pooling
