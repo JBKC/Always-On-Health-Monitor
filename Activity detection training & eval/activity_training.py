@@ -272,7 +272,11 @@ def train_model(dict, sessions, in_channels, num_classes=8):
             train_losses = []
             val_losses = []
 
-            hook = training_analysis.register_hook(model.initial_block)         # forward hook for activation maps
+            # initialise analysis with list of activation maps to produce
+            activation_layers = [model.initial_block, model.multi_kernel]
+
+            hook1 = training_analysis.register_hooks(model.initial_block)
+            hook2 = training_analysis.register_hooks(model.multi_kernel)
 
             # training loop
             for epoch in range(n_epochs):
@@ -313,10 +317,10 @@ def train_model(dict, sessions, in_channels, num_classes=8):
                 val_losses.append(loss_val.item())
 
                 ### training analysis - plot activations at the end of each epoch
-                activation_map = training_analysis.activations[model.initial_block]
-                training_analysis.plot_activation_map(activation_map)
+                training_analysis.plot_activation_map(training_analysis.activations)
 
-            hook.remove()
+            hook1.remove()
+            hook2.remove()
 
             split_time = time.time()
             print("SINGLE SPLIT COMPLETE: time ", (split_time - start_time) / 3600, " hours.")

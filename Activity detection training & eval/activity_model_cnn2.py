@@ -16,7 +16,7 @@ class SingleBlock(nn.Module):
         super().__init__()
 
         # parallel convolutions: each branch 1x1 followed by 1xn
-        self.branches = nn.ModuleList([
+        self.branch = nn.ModuleList([
             nn.Sequential(
                 nn.Conv1d(in_channels=in_channels,out_channels=n_filters,kernel_size=1),
                 nn.BatchNorm1d(n_filters),
@@ -33,7 +33,7 @@ class SingleBlock(nn.Module):
     def forward(self, X):
 
         # pass in parallel through each branch
-        out = [branch(X) for branch in self.branches]
+        out = [b(X) for b in self.branch]
         # sum up the result
         out = self.bn1(torch.sum(torch.stack(out), dim=0))
         # upscale to match input

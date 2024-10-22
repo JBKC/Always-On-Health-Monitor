@@ -5,6 +5,7 @@ File containing various analysis tools for during and after training
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import inspect
 
 def plot_weight_dist(model):
     for name, param in model.named_parameters():
@@ -27,16 +28,17 @@ def forward_hook(module, input, output):
     '''
     activations[module] = output.detach()
 
-def register_hook(layer):
+def register_hooks(layer):
     '''
-    Registers a forward hook to a specific layer.
+    Registers forward hooks for given layer(s)
     '''
-    return layer.register_forward_hook(forward_hook)
+    return layer.register_forward_hook(forward_hook)  # Register forward hook for each layer
 
-def plot_activation_map(activation_map):
+def plot_activation_map(activation_map, layer):
     '''
     Plot the heatmap of the activations for each filter in the given layer as a single grid
     '''
+
     # Take the first input in the batch and detach from the computational graph
     activation_map = activation_map[0].detach().cpu().numpy()  # Shape: (num_filters, num_samples)
 
@@ -48,9 +50,9 @@ def plot_activation_map(activation_map):
     plt.imshow(activation_map_normalized, aspect='auto', cmap='seismic', interpolation='nearest')
     plt.colorbar(label='Activation Intensity')
 
-    plt.title(f"Activation Map Grid (Filters vs Samples)")
-    plt.xlabel('Sequence Position (Samples)')
-    plt.ylabel('Filter Index')
+    plt.title(f"Activation for {layer}")
+    plt.xlabel('sample index')
+    plt.ylabel('filter index')
     plt.show()
 
 
