@@ -210,7 +210,7 @@ def train_model(dict, sessions, in_channels, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 100
+    n_epochs = 1
     batch_size = 128             # number of windows to be processed together
     n_splits = 4
 
@@ -272,6 +272,8 @@ def train_model(dict, sessions, in_channels, num_classes=8):
             train_losses = []
             val_losses = []
 
+            hook = training_analysis.register_hook(model.conv.conv1)         # forward hook for activation maps
+
             # training loop
             for epoch in range(n_epochs):
 
@@ -310,8 +312,15 @@ def train_model(dict, sessions, in_channels, num_classes=8):
 
                 val_losses.append(loss_val.item())
 
+                ### training analysis - plot activations at the end of each epoch
+                activation_map = training_analysis.activations[model.conv1]
+                training_analysis.plot_activation_maps(activation_map)
+
+            hook.remove()
+
             split_time = time.time()
             print("SINGLE SPLIT COMPLETE: time ", (split_time - start_time) / 3600, " hours.")
+
 
             plt.plot(train_losses, label='Train Loss', color='blue')
             plt.plot(val_losses, label='Validation Loss', color='black')
@@ -320,7 +329,7 @@ def train_model(dict, sessions, in_channels, num_classes=8):
             plt.legend()
             plt.show()
 
-            # post-training analysis (single split)
+            ### training analysis - plot weight distributions (single split)
             training_analysis.plot_weight_dist(model)
 
             # test on held-out session after all epochs complete
