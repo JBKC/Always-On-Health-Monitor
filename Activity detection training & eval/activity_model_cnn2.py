@@ -112,6 +112,7 @@ class AccModel(nn.Module):
         self.multi_kernel = MultiKernel(out_channels)
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
         self.fc = nn.Linear(out_channels, num_classes)
+        self.dropout = nn.Dropout(p=0.2)
 
     def forward(self, X):
 
@@ -121,6 +122,9 @@ class AccModel(nn.Module):
         X = self.multi_kernel(X)
         # global average pooling
         X = torch.squeeze(self.gap(X), dim=-1)
+
+        X = self.dropout(X)
+
         # FCN to output
         X = self.fc(X)
 
