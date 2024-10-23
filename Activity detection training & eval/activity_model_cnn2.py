@@ -20,7 +20,7 @@ class SingleBlock(nn.Module):
             nn.Sequential(
                 nn.Conv1d(in_channels=in_channels,out_channels=n_filters,kernel_size=1),
                 nn.BatchNorm1d(n_filters),
-                nn.ReLU(),
+                nn.ELU(),
                 nn.Conv1d(in_channels=n_filters, out_channels=n_filters,
                           kernel_size=ks, padding=(ks - 1) // 2 if ks % 2 == 0 else ks // 2))
             for ks in kernel_size
@@ -122,9 +122,8 @@ class AccModel(nn.Module):
         X = self.multi_kernel(X)
         # global average pooling
         X = torch.squeeze(self.gap(X), dim=-1)
-
+        # dropout
         X = self.dropout(X)
-
         # FCN to output
         X = self.fc(X)
 

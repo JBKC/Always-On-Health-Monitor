@@ -16,8 +16,9 @@ from torch.utils.data import DataLoader, TensorDataset
 import training_analysis
 
 # switch between models here
+from activity_model_cnn1 import AccModel
+# from activity_model_cnn2 import AccModel
 # from activity_model_tcn1 import AccModel
-from activity_model_cnn2 import AccModel
 
 def extract_activity(dict, sessions, mode):
     '''
