@@ -41,7 +41,7 @@ class SingleBlock(nn.Module):
         # add residual
         out = F.elu(self.bn2(out + X))
 
-        return X
+        return out
 
 
 class MultiKernel(nn.Module):
@@ -70,7 +70,6 @@ class MultiKernel(nn.Module):
         # iterate over each block in the ModuleList
         for i, block in enumerate(self.blocks):
             X = block(X)
-
 
         return X
 
@@ -107,7 +106,7 @@ class AccModel(nn.Module):
     def __init__(self, in_channels, num_classes):
         super().__init__()
 
-        out_channels = 32                          # number of filters to apply to each convolution throughout model
+        out_channels = 256                          # number of filters to apply to each convolution throughout model
 
         self.initial_block = InitialBlock(in_channels, out_channels)
         self.multi_kernel = MultiKernel(out_channels)

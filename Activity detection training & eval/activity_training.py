@@ -210,7 +210,7 @@ def train_model(dict, sessions, in_channels, num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 1
+    n_epochs = 20
     batch_size = 128             # number of windows to be processed together
     n_splits = 4
 
@@ -317,7 +317,8 @@ def train_model(dict, sessions, in_channels, num_classes=8):
                 val_losses.append(loss_val.item())
 
                 ### training analysis - plot activations at the end of each epoch
-                training_analysis.plot_activation_map(training_analysis.activations)
+                # training_analysis.plot_activation_map(training_analysis.activations[model.initial_block])
+                # training_analysis.plot_activation_map(training_analysis.activations[model.multi_kernel])
 
             hook1.remove()
             hook2.remove()

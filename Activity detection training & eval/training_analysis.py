@@ -34,23 +34,22 @@ def register_hooks(layer):
     '''
     return layer.register_forward_hook(forward_hook)  # Register forward hook for each layer
 
-def plot_activation_map(activation_map, layer):
+def plot_activation_map(activation_map):
     '''
     Plot the heatmap of the activations for each filter in the given layer as a single grid
     '''
 
-    # Take the first input in the batch and detach from the computational graph
-    activation_map = activation_map[0].detach().cpu().numpy()  # Shape: (num_filters, num_samples)
+    activation_map = activation_map[0].detach().cpu().numpy()  # Ensure it's a NumPy array
 
-    # Normalize the activation values to the range [-1, 1] for consistent heatmap scaling
-    activation_map_normalized = activation_map / np.max(np.abs(activation_map))  # Normalize based on absolute max
+
+    activation_map_normalized = activation_map / np.max(np.abs(activation_map))  # normalise
 
     # Plot the heatmap
     plt.figure(figsize=(8, 6))  # Adjust size to make the heatmap square
     plt.imshow(activation_map_normalized, aspect='auto', cmap='seismic', interpolation='nearest')
     plt.colorbar(label='Activation Intensity')
 
-    plt.title(f"Activation for {layer}")
+    plt.title(f"Activation for")
     plt.xlabel('sample index')
     plt.ylabel('filter index')
     plt.show()
