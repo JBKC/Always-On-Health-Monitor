@@ -35,18 +35,18 @@ class SingleBlock(nn.Module):
 
         # pass in parallel through each branch
         out = [b(X) for b in self.branch]
-        # print(f'Branches shape: {[i.shape for i in out]}')
+        print(f'Branches shape: {[i.shape for i in out]}')
         out = torch.cat(out, dim=1)
-        # print(f'All branches shape: {out.shape}')
+        print(f'All branches shape: {out.shape}')
 
         # pool branch
         pool_out = self.pooling(X)
-        # print(f'Pool shape: {pool_out.shape}')
+        print(f'Pool shape: {pool_out.shape}')
 
         # depth concatenate
         out = F.elu(self.bn(torch.cat((out, pool_out), dim=1)))
 
-        # print(f'Multi_kernel out shape: {out.shape}')
+        print(f'Multi_kernel out shape: {out.shape}')
 
         return out
 
@@ -91,10 +91,10 @@ class InitialBlock(nn.Module):
         self.pooling = nn.MaxPool1d(kernel_size=pooling_size, stride=2, padding=1)
 
     def forward(self, X):
-        # print(f'Input shape: {X.shape}')
+        print(f'Input shape: {X.shape}')
         X = self.bn(self.conv1(X))
         X = self.pooling(F.elu(X))
-        # print(f'Initial_block out shape: {X.shape}')
+        print(f'Initial_block out shape: {X.shape}')
 
         return X
 
@@ -125,11 +125,12 @@ class AccModel(nn.Module):
         X = self.multi_kernel(X)
         # global average pooling
         X = torch.squeeze(self.gap(X), dim=-1)
-        # print(f'Post-GAP shape: {X.shape}')
+        print(f'Post-GAP shape: {X.shape}')
         # dropout
         X = self.dropout(X)
         # FCN to output
         X = self.fc(X)
+        print(f'Model output shape: {X.shape}')
 
         return X
 
