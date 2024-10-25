@@ -34,26 +34,51 @@ def register_hooks(layer):
     '''
     return layer.register_forward_hook(forward_hook)  # Register forward hook for each layer
 
-def plot_activation_map(activation_map):
+def plot_activations_branches(activation_layers):
     '''
-    Plot the heatmap of the activations for each filter in the given layer as a single grid
+    Plot the heatmap of the activations as a single grid
+    Assumes 3 branches
     '''
 
-    activation_map = activation_map[0].detach().cpu().numpy()  # Ensure it's a NumPy array
+    grid = len(activation_layers)//3
 
+    fig, axes = plt.subplots(nrows=grid, ncols=grid, figsize=(8, 6))
 
-    activation_map_normalized = activation_map / np.max(np.abs(activation_map))  # normalise
+    for i, layer in enumerate(activation_layers):
 
-    # Plot the heatmap
-    plt.figure(figsize=(8, 6))  # Adjust size to make the heatmap square
-    plt.imshow(activation_map_normalized, aspect='auto', cmap='seismic', interpolation='nearest')
-    plt.colorbar(label='Activation Intensity')
+        map = activations[layer][0].detach().cpu().numpy()
+        map = map / np.max(np.abs(map))  # normalise
+        # get kernel size
+        idx = str(layer).index("kernel_size=")
+        title = str(layer)[idx:idx + 16]
 
-    plt.title(f"Activation for")
-    plt.xlabel('sample index')
-    plt.ylabel('filter index')
+        row = i // 3
+        col = i % 3
+        ax = axes[row, col]
+
+        ax.imshow(map, aspect='auto', cmap='seismic', interpolation='nearest')
+        ax.set_title(title)
+        ax.axis('off')
+
+    plt.tight_layout()
     plt.show()
 
+
+
+
+
+    # activation_map_normalized = activation_map / np.max(np.abs(activation_map))  # normalise
+    #
+    # # Plot the heatmap
+    # plt.figure(figsize=(8, 6))  # Adjust size to make the heatmap square
+    # plt.imshow(activation_map_normalized, aspect='auto', cmap='seismic', interpolation='nearest')
+    # plt.colorbar(label='Activation Intensity')
+    #
+    # plt.title(f"Activation for {layer_name}")
+    # plt.xlabel('sample index')
+    # plt.ylabel('filter index')
+    # plt.show()
+    #
 
 
 def main():

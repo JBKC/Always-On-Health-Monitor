@@ -198,7 +198,7 @@ def z_normalise(dict, sessions):
 
     return dict
 
-def train_model(dict, sessions, in_channels, num_classes=8):
+def train_model(dict, sessions, in_channels, analysis='n', num_classes=8):
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -243,7 +243,7 @@ def train_model(dict, sessions, in_channels, num_classes=8):
         y_train = torch.tensor(y_train, dtype=torch.long)
         y_train = F.one_hot(y_train, num_classes=num_classes).float()       # one-hot encode labels
         # apply label smoothing
-        # y_train = label_smooth(y_train, smoothing=0.1, num_classes=num_classes)
+        y_train = label_smooth(y_train, smoothing=0.1, num_classes=num_classes)
 
         # create TensorDataset and DataLoader for batching
         train_dataset = TensorDataset(X_train, y_train)
@@ -281,11 +281,18 @@ def train_model(dict, sessions, in_channels, num_classes=8):
             train_losses = []
             val_losses = []
 
-            # initialise analysis with list of activation maps to produce
-            activation_layers = [model.initial_block, model.multi_kernel]
 
-            hook1 = training_analysis.register_hooks(model.initial_block)
-            hook2 = training_analysis.register_hooks(model.multi_kernel)
+            # initialise analysis with list of activation maps to produce
+            if analysis == 'y':
+                # get activation map of each individual branch of each block of the model
+                activation_layers = [model.multi_kernel.blocks[i].branch[j][3] for i in range(3) for j in range(3)]
+                for layer in activation_layers:
+                    print(str(layer))
+                hooks = []
+                for layer in activation_layers:
+                    hook = training_analysis.register_hooks(layer)
+                    hooks.append(hook)
+
 
             # training loop
             for epoch in range(n_epochs):
@@ -326,11 +333,12 @@ def train_model(dict, sessions, in_channels, num_classes=8):
                 val_losses.append(loss_val.item())
 
                 ### training analysis - plot activations at the end of each epoch
-                # training_analysis.plot_activation_map(training_analysis.activations[model.initial_block])
-                # training_analysis.plot_activation_map(training_analysis.activations[model.multi_kernel])
+                if analysis == 'y':
+                    training_analysis.plot_activations_branches(activation_layers)
 
-            hook1.remove()
-            hook2.remove()
+            if analysis == 'y':
+                for hook in hooks:
+                    hook.remove()
 
             split_time = time.time()
             print("SINGLE SPLIT COMPLETE: time ", (split_time - start_time) / 3600, " hours.")
@@ -378,9 +386,20 @@ def main():
     dict = load_dict(filename='ppg_dalia_dict_ppg_crm_v2')
 
     # choose between ppg, acc or all as input
-    mode = input("PPG (p), ACC (a) or all (x): ")
-    if mode not in ['p', 'a', 'x']:
-        print("Error: invalid input")
+    while True:
+        mode = input("PPG (p), ACC (a) or all (x): ").lower()
+        if mode in ['p', 'a', 'x']:
+            break
+        else:
+            print("Error: invalid input. Please try again.")
+
+    # trigger model activation analysis between epochs
+    while True:
+        analysis = input("Print activation maps after each epoch? (y/n): ").lower()
+        if analysis in ['y', 'n']:
+            break
+        else:
+            print("Error: invalid input. Please try again.")
 
     # ignore transient periods (not assigned an activity) to assign labels
     act_dict, in_channels = extract_activity(dict, sessions, mode)
@@ -392,7 +411,7 @@ def main():
     act_dict = z_normalise(act_dict, sessions)
 
     # train model
-    train_model(act_dict, sessions, in_channels)
+    train_model(act_dict, sessions, in_channels, analysis)
 
 
 
