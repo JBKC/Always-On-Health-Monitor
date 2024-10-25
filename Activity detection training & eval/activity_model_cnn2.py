@@ -74,17 +74,16 @@ class MultiKernel(nn.Module):
         return X
 
 class InitialBlock(nn.Module):
-    '''
-    Input convolutional block - "conv.conv1"
-    '''
+
     def __init__(self, in_channels, out_channels):
 
         super().__init__()
 
+        kernel_size = 3
         pooling_size = 3
 
         self.conv1 = nn.Conv1d(in_channels=in_channels,out_channels=out_channels,
-                                     kernel_size=1,stride=1)
+                                     kernel_size=kernel_size,stride=1)
 
         self.bn = nn.BatchNorm1d(num_features=out_channels)
         self.pooling = nn.MaxPool1d(kernel_size=pooling_size,

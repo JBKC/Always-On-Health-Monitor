@@ -203,6 +203,12 @@ def train_model(dict, sessions, in_channels, num_classes=8):
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+    def label_smooth(labels, smoothing, num_classes):
+        with torch.no_grad():
+            labels = labels * (1 - smoothing) + smoothing / num_classes
+        return labels
+
+
     x = []
     y = []
 
@@ -236,6 +242,8 @@ def train_model(dict, sessions, in_channels, num_classes=8):
         X_train = torch.tensor(X_train, dtype=torch.float32)
         y_train = torch.tensor(y_train, dtype=torch.long)
         y_train = F.one_hot(y_train, num_classes=num_classes).float()       # one-hot encode labels
+        # apply label smoothing
+        # y_train = label_smooth(y_train, smoothing=0.1, num_classes=num_classes)
 
         # create TensorDataset and DataLoader for batching
         train_dataset = TensorDataset(X_train, y_train)
@@ -367,7 +375,7 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # load time series dictionary
-    dict = load_dict(filename='ppg_dalia_dict_ppg_crm_v1')
+    dict = load_dict(filename='ppg_dalia_dict_ppg_crm_v2')
 
     # choose between ppg, acc or all as input
     mode = input("PPG (p), ACC (a) or all (x): ")

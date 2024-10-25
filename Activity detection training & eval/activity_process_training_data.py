@@ -112,7 +112,7 @@ def save_data(s, data_dict, root_dir):
         # plot_inputs([ data_dict[s]['ppg'],data_dict[s]['ppg_c'],data_dict[s]['ppg_r'],data_dict[s]['ppg_m'] ])
 
         # filter accelerometer signal
-        data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'],btype='highpass',lowcut=2)
+        data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'],btype='bandpass',lowcut=0.3,highcut=10)
 
         # window data
         data_dict = window_data(data_dict, s)
@@ -212,7 +212,7 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
 
-    save_dict(sessions, "ppg_dalia_dict_ppg_crm_v1")
+    save_dict(sessions, "ppg_dalia_dict_ppg_crm_v2")
 
 
 
