@@ -243,7 +243,7 @@ def train_model(dict, sessions, in_channels, analysis='n', num_classes=8):
         y_train = torch.tensor(y_train, dtype=torch.long)
         y_train = F.one_hot(y_train, num_classes=num_classes).float()       # one-hot encode labels
         # apply label smoothing
-        y_train = label_smooth(y_train, smoothing=0.1, num_classes=num_classes)
+        # y_train = label_smooth(y_train, smoothing=0.1, num_classes=num_classes)
 
         # create TensorDataset and DataLoader for batching
         train_dataset = TensorDataset(X_train, y_train)

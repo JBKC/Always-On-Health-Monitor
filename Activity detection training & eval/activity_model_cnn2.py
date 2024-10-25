@@ -19,8 +19,8 @@ class SingleBlock(nn.Module):
         self.branch = nn.ModuleList([
             nn.Sequential(
                 nn.Conv1d(in_channels=in_channels,out_channels=n_filters,kernel_size=1),
-                nn.BatchNorm1d(n_filters),
                 nn.ELU(),
+                nn.BatchNorm1d(n_filters),
                 nn.Conv1d(in_channels=n_filters, out_channels=n_filters,
                           kernel_size=ks, padding=(ks - 1) // 2 if ks % 2 == 0 else ks // 2))
             for ks in kernel_size
@@ -39,7 +39,7 @@ class SingleBlock(nn.Module):
         # upscale to match input
         out = self.conv1x1(out)
         # add residual
-        out = F.elu(self.bn2(out + X))
+        out = self.bn2(F.elu(out + X))
 
         return out
 
@@ -61,9 +61,6 @@ class MultiKernel(nn.Module):
             SingleBlock(in_channels=out_channels, n_filters=bottleneck)
             for _ in range(n_blocks)
         ])
-
-        self.bn = nn.BatchNorm1d(out_channels)
-
 
     def forward(self, X):
 
@@ -88,11 +85,14 @@ class InitialBlock(nn.Module):
         self.bn = nn.BatchNorm1d(num_features=out_channels)
         self.pooling = nn.MaxPool1d(kernel_size=pooling_size,
                                     padding=(pooling_size-1)//2 if pooling_size % 2 == 0 else pooling_size//2)
+        self.dropout = nn.Dropout(p=0.3)
 
     def forward(self, X):
 
-        X = self.bn(self.conv1(X))
-        X = self.pooling(F.elu(X))
+        X = self.bn(F.elu(self.conv1(X)))
+        # dropout
+        X = self.dropout(X)
+        X = self.pooling(X)
 
         return X
 
@@ -111,7 +111,7 @@ class AccModel(nn.Module):
         self.multi_kernel = MultiKernel(out_channels)
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
         self.fc = nn.Linear(out_channels, num_classes)
-        self.dropout = nn.Dropout(p=0.2)
+        self.dropout = nn.Dropout(p=0.3)
 
     def forward(self, X):
 
