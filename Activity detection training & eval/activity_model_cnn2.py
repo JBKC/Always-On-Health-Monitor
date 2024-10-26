@@ -85,7 +85,7 @@ class InitialBlock(nn.Module):
         self.bn = nn.BatchNorm1d(num_features=out_channels)
         self.pooling = nn.MaxPool1d(kernel_size=pooling_size,
                                     padding=(pooling_size-1)//2 if pooling_size % 2 == 0 else pooling_size//2)
-        self.dropout = nn.Dropout(p=0.3)
+        self.dropout = nn.Dropout(p=0.1)
 
     def forward(self, X):
 
@@ -111,7 +111,7 @@ class AccModel(nn.Module):
         self.multi_kernel = MultiKernel(out_channels)
         self.gap = nn.AdaptiveAvgPool1d(output_size=1)  # global average pooling
         self.fc = nn.Linear(out_channels, num_classes)
-        self.dropout = nn.Dropout(p=0.3)
+        self.dropout = nn.Dropout(p=0.1)
 
     def forward(self, X):
 
