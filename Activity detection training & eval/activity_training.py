@@ -218,7 +218,7 @@ def train_model(dict, sessions, in_channels, analysis='n', num_classes=8):
 
     # initialise model
     n_epochs = 100
-    batch_size = 64             # number of windows to be processed together
+    batch_size = 128             # number of windows to be processed together
     n_splits = 4
     l2_lambda = 0.01            # regularisation
 
