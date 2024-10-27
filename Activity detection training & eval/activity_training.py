@@ -17,8 +17,8 @@ import training_analysis
 
 # switch between models here
 # from activity_model_cnn1 import AccModel
-# from activity_model_cnn2 import AccModel
-from activity_model_tcn1 import AccModel
+from activity_model_cnn2 import AccModel
+# from activity_model_tcn1 import AccModel
 
 def extract_activity(dict, sessions, mode):
     '''
@@ -217,12 +217,13 @@ def train_model(dict, sessions, in_channels, analysis='n', num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 20
-    batch_size = 128             # number of windows to be processed together
+    n_epochs = 100
+    batch_size = 64             # number of windows to be processed together
     n_splits = 4
+    l2_lambda = 0.01            # regularisation
 
     model = AccModel(in_channels, num_classes)
-    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08, weight_decay=l2_lambda)
     print(f"Number of trainable parameters: {count_parameters(model)}")
 
     # create batch splits
@@ -243,7 +244,7 @@ def train_model(dict, sessions, in_channels, analysis='n', num_classes=8):
         y_train = torch.tensor(y_train, dtype=torch.long)
         y_train = F.one_hot(y_train, num_classes=num_classes).float()       # one-hot encode labels
         # apply label smoothing
-        y_train = label_smooth(y_train, smoothing=0.05, num_classes=num_classes)
+        # y_train = label_smooth(y_train, smoothing=0.05, num_classes=num_classes)
 
         # create TensorDataset and DataLoader for batching
         train_dataset = TensorDataset(X_train, y_train)
