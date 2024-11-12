@@ -8,28 +8,28 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class PWConv(nn.Module):
-    def __init__(self)
+    def __init__(self):
         super().__init__()
 
     def forward(self):
         return
 
 class ConvFF(nn.Module):
-    def __init__(self)
+    def __init__(self):
         super().__init__()
 
     def forward(self):
         return
 
 class DWConv(nn.Module):
-    def __init__(self)
+    def __init__(self):
         super().__init__()
 
     def forward(self):
         return
 
 class Patching(nn.Module):
-    def __init__(self)
+    def __init__(self):
         super().__init__()
 
     def forward(self):
