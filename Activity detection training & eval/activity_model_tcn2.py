@@ -26,16 +26,22 @@ class DWConv(nn.Module):
     '''
     input shape = (B,M*D,N)
     '''
-    def __init__(self):
+    def __init__(self, C, klarge=51, ksmall=5, stride=1):
         super().__init__()
+
+        self.dw_large = nn.Conv1d(in_channels=C,out_channels=C,kernel_size=klarge,stride=stride,
+                                    padding=klarge//2,groups=C)
+        self.dw_small = nn.Conv1d(in_channels=C,out_channels=C,kernel_size=ksmall,stride=stride,
+                                    padding=ksmall//2,groups=C)
+
+        self.bn = nn.BatchNorm1d(C)
 
     def forward(self, z):
 
-        print(z.shape)
+        zl = self.bn(self.dw_large(z))
+        zs = self.bn(self.dw_small(z))
 
-        
-
-        return
+        return zl+zs
 
 class Patching(nn.Module):
     '''
@@ -45,7 +51,7 @@ class Patching(nn.Module):
         super().__init__()
 
         self.patch_conv = nn.Conv1d(in_channels=1,out_channels=n_embd,kernel_size=patch_size,stride=stride,
-                                    padding=(patch_size-1)//2 if patch_size % 2 == 0 else patch_size//2)
+                                    padding=patch_size//2)
 
     def forward(self, x):
 
@@ -65,12 +71,12 @@ class AccModel(nn.Module):
 
         dmin = 32
         dmax = 512
-        n_embd = min(max(2 ** np.log(in_channels), dmin), dmax)
+        n_embd = min(max(2 ** np.log(in_channels), dmin), dmax)     # embedding dimension (D)
+        C = in_channels * n_embd                                    # M*D
 
         self.patching = Patching(n_embd)
-        self.dw_conv = DWConv()
-        self.conv_ff = ConvFF()
-        self.bn = nn.BatchNorm1d(n_embd)
+        self.dw = DWConv(C)
+        self.ff = ConvFF()
         # self.head = nn.Linear()
 
     def forward(self, x):
@@ -84,7 +90,8 @@ class AccModel(nn.Module):
 
         # reshape for DWConv
         z = res.view(B, M*res.size(1), res.size(-1))
-        z = self.bn(self.dw_conv(z))
+        z = self.dw(z)
+        print(z.shape)
 
 
         #
