@@ -63,7 +63,7 @@ class DWConv(nn.Module):
 
     def forward(self, z):
 
-        zl = self.dw_large(z)
+        zl = self.bn(self.dw_large(z))
         zs = self.bn(self.dw_small(z))
 
         return zl+zs
@@ -84,12 +84,58 @@ class Patching(nn.Module):
 
         return x
 
+class Backbone(nn.Module):
+    '''
+    input shape = (B,M,D,N)
+    '''
+    def __init__(self, M, D):
+        super().__init__()
+
+        self.dw = DWConv(M,D)
+        self.bn = nn.BatchNorm1d(D)
+        self.ff1 = ConvFFN1(M,D)
+        self.ff2 = ConvFFN2(M,D)
+
+    def forward(self, x):
+
+        B, M, D, N = x.shape
+
+        # reshape for DWConv
+        z = x.reshape(B, M * D, N)
+        z = self.dw(z)
+
+        # apply batchnorm over embedding dimension
+        z = z.reshape(B, M, D, N)
+        z = z.reshape(B * M, D, N)
+        z = self.bn(z)
+        z = z.reshape(B, M, D, N)
+        z = z.reshape(B, M * D, N)
+
+        # ConvFFN1
+        z = self.ff1(z)
+
+        # reshape & permute for ConvFFN2
+        z = z.reshape(B, M, D, N)
+        z = z.permute(0, 2, 1, 3)
+        z = z.reshape(B, D * M, N)
+        z = self.ff2(z)
+
+        # reshape & permute to match input
+        z = z.reshape(B, D, M, N)
+        z = z.permute(0, 2, 1, 3)
+
+        out = x + z
+        print(out.shape)
+
+        return out
+
+
 class AccModel(nn.Module):
     '''
     Full Model architecture
     input shape = (batch_size, n_channels, n_samples) = (B,M,L)
     '''
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, n_activities, n_blocks=2):
         super().__init__()
 
         dmin = 32
@@ -97,11 +143,8 @@ class AccModel(nn.Module):
         n_embd = min(max(2 ** np.log(in_channels), dmin), dmax)     # embedding dimension (D)
 
         self.patching = Patching(n_embd)
-        self.dw = DWConv(M=in_channels,D=n_embd)
-        self.bn = nn.BatchNorm1d(n_embd)
-        self.ff1 = ConvFFN1(M=in_channels,D=n_embd)
-        self.ff2 = ConvFFN2(M=in_channels, D=n_embd)
-        # self.head = nn.Linear()
+        self.backbone = nn.ModuleList([Backbone(M=in_channels,D=n_embd) for _ in range(n_blocks)])
+        self.head = nn.Linear()
 
     def forward(self, x):
 
@@ -114,39 +157,17 @@ class AccModel(nn.Module):
 
         # reshape for backbone input
         x = x.reshape(B, M, x.size(1), x.size(-1))       # acts as input into model
-        B,M,D,N = x.shape
 
-        # reshape for DWConv
-        z = x.reshape(B,M*D,N)
-        z = self.dw(z)
+        for block in self.backbone:
+            x = block(x)
 
-        # apply batchnorm over feature dimension
-        z = z.reshape(B,M,D,N)
-        z = z.reshape(B*M,D,N)
-        z = self.bn(z)
-        z = z.reshape(B,M,D,N)
-        z = z.reshape(B,M*D,N)
-
-        # ConvFFN1
-        z = self.ff1(z)
-
-        # reshape & permute for ConvFFN2
-        z = z.reshape(B, M, D, N)
-        z = z.permute(0,2,1,3)
-        z = z.reshape(B, D*M, N)
-        z = self.ff2(z)
-
-        # reshape & permute to match input
-        z = z.reshape(B, D, M, N)
-        z = z.permute(0,2,1,3)
-        out = x + z
-        print(out.shape)
-
-        # pass into
+        # pass into Head
+        x = x.flatten()
+        x = x.unsqueeze(0)
+        print(x.shape)
 
 
-        # x = res + self.conv_ff(self.conv_ff(x))
-        # ## flatten
+
         # out = self.head(x)
 
         return

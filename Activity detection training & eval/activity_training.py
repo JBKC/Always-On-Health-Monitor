@@ -223,7 +223,7 @@ def train_model(dict, sessions, in_channels, analysis='n', num_classes=8):
     n_splits = 4
     l2_lambda = 0.01            # regularisation
 
-    model = AccModel(in_channels)
+    model = AccModel(in_channels, n_activities)
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08, weight_decay=l2_lambda)
     print(f"Number of trainable parameters: {count_parameters(model)}")
 
