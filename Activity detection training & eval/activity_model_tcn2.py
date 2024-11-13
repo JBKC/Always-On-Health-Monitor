@@ -125,7 +125,6 @@ class Backbone(nn.Module):
         z = z.permute(0, 2, 1, 3)
 
         out = x + z
-        print(out.shape)
 
         return out
 
@@ -135,7 +134,7 @@ class AccModel(nn.Module):
     Full Model architecture
     input shape = (batch_size, n_channels, n_samples) = (B,M,L)
     '''
-    def __init__(self, in_channels, n_activities, n_blocks=2):
+    def __init__(self, in_channels, num_classes, n_blocks=2):
         super().__init__()
 
         dmin = 32
@@ -144,7 +143,7 @@ class AccModel(nn.Module):
 
         self.patching = Patching(n_embd)
         self.backbone = nn.ModuleList([Backbone(M=in_channels,D=n_embd) for _ in range(n_blocks)])
-        self.head = nn.Linear()
+        self.head = nn.Linear(in_channels*n_embd*256, num_classes)
 
     def forward(self, x):
 
@@ -162,15 +161,10 @@ class AccModel(nn.Module):
             x = block(x)
 
         # pass into Head
-        x = x.flatten()
-        x = x.unsqueeze(0)
-        print(x.shape)
+        x = x.view(x.size(0), -1)
+        out = self.head(x)
 
-
-
-        # out = self.head(x)
-
-        return
+        return out
 
 
 

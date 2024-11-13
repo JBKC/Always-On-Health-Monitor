@@ -218,12 +218,12 @@ def train_model(dict, sessions, in_channels, analysis='n', num_classes=8):
     y.extend([dict[session]['activity'] for session in sessions])
 
     # initialise model
-    n_epochs = 100
+    n_epochs = 10
     batch_size = 128             # number of windows to be processed together
     n_splits = 4
     l2_lambda = 0.01            # regularisation
 
-    model = AccModel(in_channels, n_activities)
+    model = AccModel(in_channels, num_classes)
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08, weight_decay=l2_lambda)
     print(f"Number of trainable parameters: {count_parameters(model)}")
 
