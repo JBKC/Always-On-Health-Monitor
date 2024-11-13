@@ -20,13 +20,13 @@ class ConvFFN1(nn.Module):
         self.pw11 = nn.Conv1d(in_channels=M * D, out_channels=r * M * D, kernel_size=1, stride=1, groups=M)
         self.pw12 = nn.Conv1d(in_channels=r * M * D, out_channels=M * D, kernel_size=1, stride=1, groups=M)
 
+    def forward(self, z):
 
-    def forward(self, x):
+        z = self.pw12(F.gelu(self.pw11(z)))
 
-        print(x.shape)
-        x = F.gelu(self.pw11(x))
+        ## dropout goes here
 
-        return
+        return z
 
 class ConvFFN2(nn.Module):
     '''
@@ -39,12 +39,13 @@ class ConvFFN2(nn.Module):
         self.pw21 = nn.Conv1d(in_channels=M * D, out_channels=r * M * D, kernel_size=1, stride=1, groups=D)
         self.pw22 = nn.Conv1d(in_channels=r * M * D, out_channels=M * D, kernel_size=1, stride=1, groups=D)
 
-    def forward(self, x):
+    def forward(self, z):
 
-        print(x.shape)
-        x = F.gelu(self.pw11(x))
+        z = self.pw22(F.gelu(self.pw21(z)))
 
-        return
+        ## dropout goes here
+
+        return z
 
 class DWConv(nn.Module):
     '''
@@ -80,7 +81,7 @@ class Patching(nn.Module):
     def forward(self, x):
 
         # reshape for Pytorch convolution (B*M,1,L)
-        x = x.view(-1, 1, x.size(-1))
+        x = x.reshape(-1, 1, x.size(-1))
         x = self.patch_conv(x)
 
         return x
@@ -111,16 +112,22 @@ class AccModel(nn.Module):
         # reshape for patching
         x = x.unsqueeze(2)
         x = self.patching(x)
-        res = x.view(B, M, x.size(1), x.size(-1))
-        # res = residual term
+        res = x.reshape(B, M, x.size(1), x.size(-1))       # residual term
 
         # reshape for DWConv
-        z = x.view(B, M*x.size(1), x.size(-1))
+        z = x.reshape(B, M*x.size(1), x.size(-1))
         z = self.dw(z)
-        print(z.shape)
 
         # ConvFFN1
         z = self.ff1(z)
+
+        # reshape for ConvFFN2
+        z = x.reshape(B, M, res.size(-2), res.size(-1))
+        z = z.permute(0,2,1,3)
+        z = z.reshape(B, z.size(1)*M, z.size(-1))
+        z = (self.ff2(z))
+
+
 
         # x = res + self.conv_ff(self.conv_ff(x))
         # ## flatten
