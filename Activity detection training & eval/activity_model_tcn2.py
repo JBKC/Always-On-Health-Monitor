@@ -98,7 +98,7 @@ class AccModel(nn.Module):
 
         self.patching = Patching(n_embd)
         self.dw = DWConv(M=in_channels,D=n_embd)
-        self.bn = nn.BatchNorm1d(in_channels*n_embd)
+        self.bn = nn.BatchNorm1d(n_embd)
         self.ff1 = ConvFFN1(M=in_channels,D=n_embd)
         self.ff2 = ConvFFN2(M=in_channels, D=n_embd)
         # self.head = nn.Linear()
@@ -120,7 +120,7 @@ class AccModel(nn.Module):
         z = x.reshape(B,M*D,N)
         z = self.dw(z)
 
-        # apply batchnorm
+        # apply batchnorm over feature dimension
         z = z.reshape(B,M,D,N)
         z = z.reshape(B*M,D,N)
         z = self.bn(z)
