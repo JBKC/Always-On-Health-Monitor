@@ -8,18 +8,42 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class PWConv(nn.Module):
-    def __init__(self):
+
+class ConvFFN1(nn.Module):
+    '''
+    input shape = (B,M*D,N)
+    '''
+    def __init__(self, M, D):
         super().__init__()
 
-    def forward(self):
+        r = 1
+        self.pw11 = nn.Conv1d(in_channels=M * D, out_channels=r * M * D, kernel_size=1, stride=1, groups=M)
+        self.pw12 = nn.Conv1d(in_channels=r * M * D, out_channels=M * D, kernel_size=1, stride=1, groups=M)
+
+
+    def forward(self, x):
+
+        print(x.shape)
+        x = F.gelu(self.pw11(x))
+
         return
 
-class ConvFF(nn.Module):
-    def __init__(self):
+class ConvFFN2(nn.Module):
+    '''
+    input shape = (B,D*M,N)
+    '''
+    def __init__(self, M, D):
         super().__init__()
 
-    def forward(self):
+        r = 1
+        self.pw21 = nn.Conv1d(in_channels=M * D, out_channels=r * M * D, kernel_size=1, stride=1, groups=D)
+        self.pw22 = nn.Conv1d(in_channels=r * M * D, out_channels=M * D, kernel_size=1, stride=1, groups=D)
+
+    def forward(self, x):
+
+        print(x.shape)
+        x = F.gelu(self.pw11(x))
+
         return
 
 class DWConv(nn.Module):
@@ -72,11 +96,12 @@ class AccModel(nn.Module):
         dmin = 32
         dmax = 512
         n_embd = min(max(2 ** np.log(in_channels), dmin), dmax)     # embedding dimension (D)
-        C = in_channels * n_embd                                    # M*D
+        C = in_channels * n_embd                                    # C = M*D
 
         self.patching = Patching(n_embd)
         self.dw = DWConv(C)
-        self.ff = ConvFF()
+        self.ff1 = ConvFFN1(M=in_channels,D=n_embd)
+        self.ff2 = ConvFFN2(M=in_channels, D=n_embd)
         # self.head = nn.Linear()
 
     def forward(self, x):
@@ -85,21 +110,23 @@ class AccModel(nn.Module):
 
         # reshape for patching
         x = x.unsqueeze(2)
-        res = self.patching(x)       # res = input into proxy-transformer architecture
-        print(res.shape)
+        x = self.patching(x)
+        res = x.view(B, M, x.size(1), x.size(-1))
+        # res = residual term
 
         # reshape for DWConv
-        z = res.view(B, M*res.size(1), res.size(-1))
+        z = x.view(B, M*x.size(1), x.size(-1))
         z = self.dw(z)
         print(z.shape)
 
+        # ConvFFN1
+        z = self.ff1(z)
 
-        #
         # x = res + self.conv_ff(self.conv_ff(x))
         # ## flatten
         # out = self.head(x)
 
-        return out
+        return
 
 
 
