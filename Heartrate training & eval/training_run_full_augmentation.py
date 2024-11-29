@@ -1,7 +1,7 @@
 '''
 Main script for training temporal attention model
 Full training dataset combines original x_BVP PPG Dalia dataset with adversarial examples & high HR examples
-*** separate model trained for each session ***
+Outputs a LOSO model trained against each test session cycle s: temporal_attention_model_full_augment_session_S{s+1}.pth
 '''
 
 import numpy as np
@@ -62,10 +62,10 @@ def train_model(dict, noise_dict, sessions):
         return -dist.log_prob(y)
 
     # initialise model
-    n_epochs = 500
+    n_epochs = 500              # number of passes through model
     patience = 10               # early stopping parameter
     batch_size = 256            # number of windows to be processed together
-    n_splits = 4
+    n_splits = 4                # number of splits of sessions (subjects)
 
     # create temporal pairs of time windows for both original data and noise data
     x, y, act = temporal_pairs(dict, sessions)
@@ -73,7 +73,7 @@ def train_model(dict, noise_dict, sessions):
 
     # LOSO splits
     ids = shuffle(list(range(len(sessions))))       # index each session
-    splits = np.array_split(ids, n_splits)
+    splits = np.array_split(ids, n_splits)          # divide sessions into splits
 
     start_time = time.time()
 
@@ -84,7 +84,7 @@ def train_model(dict, noise_dict, sessions):
         # if split_idx <= last_split_idx:
         #     continue
 
-        # set training data (current split = testing/validation data)
+        # set training data as any splits that aren't the current split
         train_idxs = np.array([i for i in ids if i not in split])
 
         X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
@@ -106,12 +106,12 @@ def train_model(dict, noise_dict, sessions):
             # if split_idx == last_split_idx and session_idx <= last_session_idx:
             #     continue
 
-            # set current session's original data to test data
+            # set test data as the current session s within the current split
             X_test = x[s]
             y_test = y[s]
             act_test = act[s]
 
-            # set validation data (remainder of current split)
+            # set validation data as remainder of the current split
             val_idxs = np.array([j for j in split if j != s])
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
@@ -123,7 +123,7 @@ def train_model(dict, noise_dict, sessions):
             X_test = torch.tensor(X_test, dtype=torch.float32)
             y_test = torch.tensor(y_test, dtype=torch.float32)
             
-            ### create model instance at this level = separate model trained for each test session
+            ### create model instance at this level (separate model trained for each test session)
             model = TemporalAttentionModel()
             optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
@@ -138,7 +138,7 @@ def train_model(dict, noise_dict, sessions):
                 epoch = checkpoint['epoch']
                 best_val_loss = checkpoint['best_val_loss']
                 counter = checkpoint['counter']
-                splits = checkpoint['splits'],
+                saved_splits = checkpoint['saved_splits'],
                 processed_splits = checkpoint['processed_splits']
                 last_split_idx = checkpoint['last_split_idx']
                 last_session = checkpoint['last_session']
@@ -200,7 +200,7 @@ def train_model(dict, noise_dict, sessions):
                         'epoch': epoch,  # save the current epoch
                         'best_val_loss': best_val_loss,  # the best validation loss
                         'counter': counter,  # early stopping counter
-                        'splits': splits,  # training splits
+                        'saved_splits': saved_splits,  # training splits
                         'processed_splits': processed_splits,  # track which splits have already been processed
                         'last_split_idx': split_idx,  # the index of the last split
                         'last_session': s,  # the last session in the current split
