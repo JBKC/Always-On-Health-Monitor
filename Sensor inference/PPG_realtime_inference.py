@@ -9,16 +9,53 @@ import serial
 from Heartrate_training_eval.temporal_attention_model import TemporalAttentionModel
 import asyncio
 import collections
+import time
+import numpy as np
+
+
+async def producer(ser, sliding_window):
+    """
+    Collects streaming data and appends to a sliding window
+    """
+    buffer_data = ""  # Temporary buffer for incomplete lines
+
+    while True:
+        if ser.in_waiting > 0:
+            try:
+                raw_data = ser.read(ser.in_waiting).decode('utf-8')
+                buffer_data += raw_data
+                lines = buffer_data.split("\n")
+                buffer_data = lines[-1]  # Keep incomplete line
+
+                for line in lines[:-1]:
+                    if line.startswith("ppg:"):
+                        ppg = float(line.split(":")[1])
+                    elif line.startswith("accel:"):
+                        accel = tuple(map(float, line.split(":")[1].split(",")))
+
+                        sample = [ppg, *accel]
+                        sliding_window.append(sample)
+
+                        # Append the new sample to the sliding window
+                        if len(sliding_window) > 256:
+                            sliding_window.popleft()
+
+                        print(sample)
+
+            except Exception as e:
+                print(f"Error: {e}")
+
+        await asyncio.sleep(0.01)
 
 
 
-async def producer(ser, window):
+async def consumer(window, output):
     '''
-    Reads raw data and saves in dictionary
+    Processes data on queue + passes through model to give HR prediction
     '''
 
 
-    return
+
 
 async def main():
     '''
@@ -36,19 +73,18 @@ async def main():
     baud_rate = 115200
     ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
-    # create queue to store data (8 second windows)
-    maxlen = 256
-    window = collections.deque(maxlen=maxlen)
+    # buffer (deque) to store data in an 8-second sliding window
+    buffer = collections.deque(maxlen=256)
+    # queue for HR predictions
+    output = asyncio.Queue()
 
+    # extract + process data concurrently
     async with asyncio.TaskGroup() as tg:
-        #
-        task1 = tg.create_task(producer(ser, window))
-        task2 = ...
+        task1 = tg.create_task(producer(ser, buffer))
+        # task2 = tg.create_task(consumer(window))
 
     # run tasks
-    await asyncio.gather(task1, task2)
-
-
+    await asyncio.gather(task1)
 
 
 if __name__ == '__main__':
