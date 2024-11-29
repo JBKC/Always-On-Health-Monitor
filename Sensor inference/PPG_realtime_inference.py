@@ -3,12 +3,7 @@ Passes PPG sensor & accelerometer input through trained model to produce real-ti
 '''
 
 import torch
-from temporal_attention_model import TemporalAttentionModel
-
-
-
-
-
+from Heartrate_training_eval.temporal_attention_model import TemporalAttentionModel
 
 
 
