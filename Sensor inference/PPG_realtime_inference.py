@@ -1,55 +1,55 @@
 '''
 Passes PPG sensor & accelerometer input through trained model to produce real-time heart-rate inference
-Sensors:
-- ppg = DFRobot_Heartrate: fs=
-- accelerometer = Adafruit_MMA8451: fs=
+ppg sensor = DFRobot_Heartrate
+accelerometer = Adafruit_MMA8451
 '''
 
 import torch
 import serial
 from Heartrate_training_eval.temporal_attention_model import TemporalAttentionModel
-import time
+import asyncio
+import collections
 
 
-def clean_stream():
 
-    # pass through ma removal etc
+async def producer(ser, window):
+    '''
+    Reads raw data and saves in dictionary
+    '''
+
 
     return
 
+async def main():
+    '''
+    Runs main asynchronous tasks
+    '''
 
+    # initialise model
+    checkpoint = torch.load('../models/temporal_attention_model_full_augment_session_S6.pth')
+    model = TemporalAttentionModel()  # Update with any required parameters for your model initialization
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
 
-def main():
-
-    def downsample():
-        return
-
-    serial_port = '/dev/cu.usbmodem14101'  # Replace with your Arduino's port (e.g., 'COM3' on Windows)
+    # get stream from Arduino
+    serial_port = '/dev/cu.usbmodem14101'
     baud_rate = 115200
+    ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
-    try:
-        ser = serial.Serial(serial_port, baud_rate, timeout=1)
-        print(f"Connected to {serial_port} at {baud_rate} baud")
-        time.sleep(2)  # Wait for Arduino to reset
-    except serial.SerialException as e:
-        print(f"Error: {e}")
-        exit()
+    # create queue to store data (8 second windows)
+    maxlen = 256
+    window = collections.deque(maxlen=maxlen)
 
-    while True:
-        if ser.in_waiting > 0:  # Check if data is available
-            data = ser.readline().decode('utf-8').strip()  # Read and decode the data
-            print(data)
+    async with asyncio.TaskGroup() as tg:
+        #
+        task1 = tg.create_task(producer(ser, window))
+        task2 = ...
 
-
+    # run tasks
+    await asyncio.gather(task1, task2)
 
 
-    #
-    # # initialise model
-    # checkpoint = torch.load('../models/temporal_attention_model_full_augment_session_S6.pth')
-    # model = TemporalAttentionModel()  # Update with any required parameters for your model initialization
-    #
-    # model.load_state_dict(checkpoint['model_state_dict'])
-    # model.eval()
+
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
