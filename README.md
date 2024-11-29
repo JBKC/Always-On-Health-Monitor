@@ -11,4 +11,4 @@ Add in activity detection as in PPG Dalia (walking, cycling, etc)
 Use trained model to run realtime inference using Adafruit PPG and accelerometer sensors
 
 ## STEP 4
-Model optimisation to run locally on a smartwatch devices
+Model optimisation to run locally on a smartwatch devices, using Raspberry Pi or similar
