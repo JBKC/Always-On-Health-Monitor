@@ -3,15 +3,23 @@ Passes PPG sensor & accelerometer input through trained model to produce real-ti
 '''
 
 import torch
+from temporal_attention_model import TemporalAttentionModel
+
+
+
+
+
+
+
 
 def main():
-    # extract model
-    checkpoint_path = '../models/temporal_attention_model_full_augment_session_S6.pth'
-    checkpoint = torch.load(checkpoint_path)
 
-    print("Keys in the checkpoint file:")
-    print(checkpoint.keys())
+    # initialise model
+    checkpoint = torch.load('../models/temporal_attention_model_full_augment_session_S6.pth')
+    model = TemporalAttentionModel()  # Update with any required parameters for your model initialization
 
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
 
 if __name__ == '__main__':
     main()
