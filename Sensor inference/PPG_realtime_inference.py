@@ -5,55 +5,74 @@ accelerometer = Adafruit_MMA8451
 '''
 
 import torch
+import numpy as np
 import serial
 from Heartrate_training_eval.temporal_attention_model import TemporalAttentionModel
+import realtime_eval
 import asyncio
 import collections
 import time
-import numpy as np
+import traceback
 
 
-async def producer(ser, sliding_window):
+async def producer(ser, buffer, maxlen):
     """
-    Collects streaming data and appends to a sliding window
+    Collects streaming data and appends to a buffer (sliding window).
     """
-    buffer_data = ""  # Temporary buffer for incomplete lines
+    temp = ""  # Temporary buffer for incomplete lines
 
     while True:
         if ser.in_waiting > 0:
-            try:
-                raw_data = ser.read(ser.in_waiting).decode('utf-8')
-                buffer_data += raw_data
-                lines = buffer_data.split("\n")
-                buffer_data = lines[-1]  # Keep incomplete line
 
-                for line in lines[:-1]:
-                    if line.startswith("ppg:"):
-                        ppg = float(line.split(":")[1])
-                    elif line.startswith("accel:"):
-                        accel = tuple(map(float, line.split(":")[1].split(",")))
+            # Read available data and append to temp
+            raw_data = ser.read(ser.in_waiting).decode('utf-8')
+            temp += raw_data
 
-                        sample = [ppg, *accel]
-                        sliding_window.append(sample)
+            # Split data into lines
+            lines = temp.split("\n")
+            temp = lines[-1]  # Keep incomplete line for the next iteration
 
-                        # Append the new sample to the sliding window
-                        if len(sliding_window) > 256:
-                            sliding_window.popleft()
+            # Process complete lines
+            for line in lines[:-1]:
 
-                        print(sample)
+                if line.startswith("ppg:"):
+                    ppg = float(line.split(":")[1])
 
-            except Exception as e:
-                print(f"Error: {e}")
+                elif line.startswith("accel:"):
+                    accel = tuple(map(float, line.split(":")[1].split(",")))
+
+                    sample = [ppg, *accel]  # Create sample
+                    buffer.append(sample)
+                    print(sample)
+
+                    # Maintain sliding window size
+                    if len(buffer) > maxlen:
+                        buffer.popleft()
+
 
         await asyncio.sleep(0.01)
 
-
-
-async def consumer(window, output):
+async def consumer(buffer, maxlen, model, output):
     '''
-    Processes data on queue + passes through model to give HR prediction
+    Takes snapshot of queue & passes through model to give HR prediction
     '''
 
+    ### need to create another queue that saves snapshots - for the case where inference of each window takes >2 seconds
+
+    while True:
+        if len(buffer) == maxlen:
+            buffer = np.array(buffer)
+
+            ### include artifact removal / pre-processing to get x_bvp
+
+            # Process the data through the model
+            pred = await asyncio.to_thread(realtime_eval.main(buffer, model))
+
+            print(f"Heart rate prediction: {pred}")
+
+            ### pin to output buffer
+
+        await asyncio.sleep(0)
 
 
 
@@ -73,18 +92,20 @@ async def main():
     baud_rate = 115200
     ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
-    # buffer (deque) to store data in an 8-second sliding window
-    buffer = collections.deque(maxlen=256)
+    maxlen = 320                # holds 2 windows
+
+    # buffer (deque) to store data in 2 overlapping 8-second sliding windows
+    buffer = collections.deque(maxlen=maxlen)
     # queue for HR predictions
     output = asyncio.Queue()
 
     # extract + process data concurrently
     async with asyncio.TaskGroup() as tg:
-        task1 = tg.create_task(producer(ser, buffer))
-        # task2 = tg.create_task(consumer(window))
+        task1 = tg.create_task(producer(ser, buffer, maxlen))
+        task2 = tg.create_task(consumer(buffer, maxlen, model, output))
 
     # run tasks
-    await asyncio.gather(task1)
+    await asyncio.gather(task1, task2)
 
 
 if __name__ == '__main__':
