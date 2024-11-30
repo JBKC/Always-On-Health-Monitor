@@ -66,9 +66,8 @@ async def consumer(buffer, maxlen, model, output):
             ### include artifact removal / pre-processing to get x_bvp
 
             # Process the data through the model
-            pred = await asyncio.to_thread(realtime_eval.main(buffer, model))
+            pred = await asyncio.to_thread(realtime_eval.main, buffer, model)
 
-            print(f"Heart rate prediction: {pred}")
 
             ### pin to output buffer
 

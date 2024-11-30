@@ -15,10 +15,10 @@ def run_inference(x_input, model):
 
         # Perform inference
         with torch.no_grad():
-            predictions = model(x_cur, x_prev)      # Predict heart rates
-            y_pred_m = predictions[:, 0]            # Mean of predicted HR
+            pred = model(x_cur, x_prev).mean
+            print(f"Heart rate prediction: {pred}")
 
-            return y_pred_m.numpy()
+            return pred
 
 def main(buffer, model):
 
