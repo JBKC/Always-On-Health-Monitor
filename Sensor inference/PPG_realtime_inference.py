@@ -7,7 +7,7 @@ accelerometer = Adafruit_MMA8451
 import torch
 import numpy as np
 import serial
-from Heartrate_training_eval.temporal_attention_model import TemporalAttentionModel
+from Heartrate_training_eval.temporal_attention_model import SubModel
 import realtime_eval
 import asyncio
 import collections
@@ -82,7 +82,7 @@ async def main():
 
     # initialise model
     checkpoint = torch.load('../models/temporal_attention_model_full_augment_session_S6.pth')
-    model = TemporalAttentionModel()  # Update with any required parameters for your model initialization
+    model = SubModel()
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 

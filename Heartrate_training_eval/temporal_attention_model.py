@@ -169,7 +169,7 @@ class TemporalAttentionModel(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.fc2(self.dropout(x))
 
-        # pass through probabilistic layer
+        # pass through probabilistic layer - this is the part not in SubModel
         out = self.gaussian(x)
 
         return out
