@@ -33,7 +33,6 @@ def temporal_pairs(dict, eval_session):
 
 def inference(dict, eval_session):
     '''
-    ....
     :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
     :param eval_session: session name (string)
     '''
@@ -49,8 +48,9 @@ def inference(dict, eval_session):
 
     # load trained model for selected session
     try:
-        checkpoint_path = f'../models/temporal_attention_model_full_augment_session_{eval_session}.pth'
-        checkpoint = torch.load(checkpoint_path)
+        # checkpoint_path = f'../models/temporal_attention_model_full_augment_session_{eval_session}.pth'
+        checkpoint_path = f'../models/temporal_attention_model_session_{eval_session}.pth'
+        checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         state_dict = checkpoint['model_state_dict']
         for key, value in checkpoint.items():
             print(key, value)
@@ -73,11 +73,13 @@ def inference(dict, eval_session):
         hrs = gaussian.mean
 
         print(f"Heart rate prediction: {hrs}")
-        print(y_test)
+        print(f"Heart rate labels: {y_test}")
 
-        plt.plot(hrs, 'red')
-        plt.plot(y_test, 'black')
-
+        # plotting
+        plt.plot(y_test, color='black',linewidth=1, label='Labels')
+        plt.plot(hrs, color='red', linewidth=1, label='Predictions')
+        plt.legend()
+        plt.ylabel("Heart Rate (BPM)")
         plt.show()
 
     return
@@ -93,11 +95,10 @@ def main():
 
             return data_dict
 
-    eval_session = 'S6'
+    # enter model's test session
+    eval_session = 'S7'
 
-    # load x_bvp data
     dict = load_dict(filename='../ppg_filt_dict')
-
     inference(dict, eval_session)
 
 if __name__ == '__main__':
