@@ -11,6 +11,8 @@ from temporal_attention_model import TemporalAttentionModel
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+import psutil
+
 
 
 def temporal_pairs(dict, sessions):
@@ -18,7 +20,7 @@ def temporal_pairs(dict, sessions):
     Create temporal pairs between adjacent windows for all data
     :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
     :param sessions: list of session names
-    :return x_all: temporal pairs of each session as a list of length n_sessions - each entry shape (n_windows, 1, 256, 2)
+    :return x_all: temporal pairs of each session as a list of length n_sessions - each entry shape (n_windows, 256, 2)
     :return y_all: ground truth HR labels as a list of length n_sessions
     :return act_all: activity labels as a list of length n_sessions
     '''
@@ -29,17 +31,16 @@ def temporal_pairs(dict, sessions):
 
     for s in sessions:
 
-        x = dict[s]['bvp']
+        x = dict[s]['bvp'].squeeze(axis=1)
 
         # pair adjacent windows (i, i-1)
         x_pairs = (np.expand_dims(x[1:,:],axis=-1) , np.expand_dims(x[:-1,:],axis=-1))
         x_pairs = np.concatenate(x_pairs,axis=-1)
-        # results in concatenated pairs of shape (n_windows, 1, n_samples, 2)
+        # results in concatenated pairs of shape (n_windows, n_samples, 2)
 
         x_all.append(x_pairs)
         y_all.append(dict[s]['label'][1:])
         act_all.append(dict[s]['activity'][1:])
-
 
     return x_all, y_all, act_all
 
@@ -49,6 +50,29 @@ def train_model(dict, sessions):
     :param dict: dictionary of all session data - each session shape (n_windows, n_channels, n_samples)
     :param sessions: list of session names
     '''
+
+    def torch_convert(X, y, batch_size=10):
+        '''
+        Necessary when converting large amounts of numpy data to torch data in one go
+        '''
+
+        X_batches = []
+        y_batches = []
+
+        # Process in batches
+        for i in range(0, len(X), batch_size):
+            X_batch = X[i:i + batch_size]
+            y_batch = y[i:i + batch_size]
+
+            # Convert each batch to PyTorch tensor
+            X_batches.append(torch.tensor(X_batch, dtype=torch.float32))
+            y_batches.append(torch.tensor(y_batch, dtype=torch.float32))
+
+        # Concatenate all batches
+        X_tensor = torch.cat(X_batches, dim=0)
+        y_tensor = torch.cat(y_batches, dim=0)
+
+        return X_tensor, y_tensor
 
     def NLL(dist, y):
         '''
@@ -63,12 +87,10 @@ def train_model(dict, sessions):
     # initialise model
     n_epochs = 500
     patience = 10               # early stopping parameter
-    batch_size = 256            # number of windows to be processed together
+    batch_size = 128            # number of windows to be processed together
     n_splits = 4
 
-    # create model instance
-    model = TemporalAttentionModel()
-    optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+    print(f'Training Started.')
 
     # create temporal pairs of time windows
     x, y, act = temporal_pairs(dict, sessions)
@@ -77,51 +99,28 @@ def train_model(dict, sessions):
     ids = shuffle(list(range(len(sessions))))       # index each session
     splits = np.array_split(ids, n_splits)
 
-    # Load checkpoint if available
-    checkpoint_path = '/models/best_temporal_attention_model.pth'
-
-    try:
-        checkpoint = torch.load(checkpoint_path)
-
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint['epoch']
-        best_val_loss = checkpoint['best_val_loss']
-        counter = checkpoint['counter']
-        splits = checkpoint['splits'],
-        processed_splits = checkpoint['processed_splits']
-        last_split_idx = checkpoint['last_split_idx']
-        last_session = checkpoint['last_session']
-        last_session_idx = checkpoint['last_session_idx']
-        print(f"Checkpoint found, resuming from Split {last_split_idx + 1}, Session {last_session + 1}")
-
-    except FileNotFoundError:
-        print("No checkpoint found, training from scratch")
-        best_val_loss = float('inf')        # early stopping parameter
-        counter = 0                         # early stopping parameter
-        processed_splits = []               # track each split as they are processed
-        last_split_idx = -1
-        last_session_idx = -1
-        epoch = -1
-
     start_time = time.time()
 
     # outer LOSO split for training data
     for split_idx, split in enumerate(splits):
 
-        # skip already-processed splits
-        if split_idx <= last_split_idx:
-            continue
+        # # skip already-processed splits
+        # if split_idx <= last_split_idx:
+        #     continue
 
         # set training data (current split = testing/validation data)
         train_idxs = np.array([i for i in ids if i not in split])
+
         X_train = np.concatenate([x[i] for i in train_idxs], axis=0)
         y_train = np.concatenate([y[i] for i in train_idxs], axis=0)
-        act_train = np.concatenate([act[i] for i in train_idxs], axis=0)
 
-        # convert to torch tensor
-        X_train = torch.tensor(X_train, dtype=torch.float32)
-        y_train = torch.tensor(y_train, dtype=torch.float32)
+        # compress representation
+        X_train = X_train.astype(np.float32)
+        y_train = y_train.astype(np.float32)
+
+        # Convert the dataset
+        X_train, y_train = torch_convert(X_train, y_train)
+        print(f"X_train shape: {X_train.shape}")
 
         # create TensorDataset and DataLoader for batching
         train_dataset = TensorDataset(X_train, y_train)
@@ -130,24 +129,58 @@ def train_model(dict, sessions):
         # inner LOSO split for testing & validation data
         for session_idx, s in enumerate(split):
 
-            # skip already-processed sessions in current split
-            if split_idx == last_split_idx and session_idx <= last_session_idx:
-                continue
+            # # skip already-processed sessions in current split
+            # if split_idx == last_split_idx and session_idx <= last_session_idx:
+            #     continue
 
-            # set current session to test data
+            # set test data as the current session s within the current split
             X_test = x[s]
             y_test = y[s]
-            act_test = act[s]
+            X_test, y_test = torch_convert(X_test, y_test)
+            print(f"X_test shape: {X_test.shape}")
 
             # set validation data (remainder of current split)
             val_idxs = np.array([j for j in split if j != s])
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
-            act_val = np.concatenate([act[j] for j in val_idxs], axis=0)
 
             # convert to torch tensors
-            X_val = torch.tensor(X_val, dtype=torch.float32)
-            y_val = torch.tensor(y_val, dtype=torch.float32)
+            X_val, y_val = torch_convert(X_val, y_val)
+            print(f"X_val shape: {X_val.shape}")
+
+            # train separate model for each test session
+            model = TemporalAttentionModel()
+            optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
+
+            # load checkpoint if available
+            checkpoint_path = f'../models/temporal_attention_model_session_S{s+1}.pth'
+
+            try:
+                checkpoint = torch.load(checkpoint_path)
+
+                model.load_state_dict(checkpoint['model_state_dict'])
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                epoch = checkpoint['epoch']
+                best_val_loss = checkpoint['best_val_loss']
+                counter = checkpoint['counter']
+                saved_splits = checkpoint['saved_splits'],
+                processed_splits = checkpoint['processed_splits']
+                last_split_idx = checkpoint['last_split_idx']
+                last_session = checkpoint['last_session']
+                last_session_idx = checkpoint['last_session_idx']
+                print(f"Checkpoint found, resuming from Split {last_split_idx + 1}, Session {last_session + 1}")
+
+            except FileNotFoundError:
+                print("No checkpoint found, training from scratch")
+                best_val_loss = float('inf')  # early stopping parameter
+                counter = 0  # early stopping parameter
+                processed_splits = []  # track each split as they are processed
+                last_split_idx = -1
+                last_session_idx = -1
+                epoch = -1
+
+            print(
+                f"System status before training: CPU: {psutil.cpu_percent()}%, Memory: {psutil.virtual_memory().percent}%")
 
             # training loop
             for epoch in range(epoch +1, n_epochs):
@@ -160,8 +193,8 @@ def train_model(dict, sessions):
                     optimizer.zero_grad()
 
                     # prep data for model input - shape is (batch_size, n_channels, sequence_length) = (256, 1, 256)
-                    x_cur = X_batch[:,:,:,0]
-                    x_prev = X_batch[:,:,:,-1]
+                    x_cur = X_batch[:, :, 0].unsqueeze(1)
+                    x_prev = X_batch[:, :, -1].unsqueeze(1)
 
                     # forward pass through model (convolutions + attention + probabilistic)
                     dist = model(x_cur, x_prev)
@@ -179,7 +212,7 @@ def train_model(dict, sessions):
                 model.eval()
 
                 with torch.no_grad():
-                    val_dist = model(X_val[:,:,:,0], X_val[:,:,:,-1])
+                    val_dist = model(X_val[:,:,0].unsqueeze(1), X_val[:,:,-1].unsqueeze(1))
                     val_loss = NLL(val_dist, y_val).mean()          # average validation across all windows
 
                     print(f'Test session: S{s + 1}, Epoch [{epoch + 1}/{n_epochs}], Validation Loss: {val_loss.item():.4f}')
@@ -212,7 +245,7 @@ def train_model(dict, sessions):
 
             # test on held-out session after all epochs complete
             with torch.no_grad():
-                test_dist = model(X_test[:,:,:,0], X_test[:,:,:,-1])
+                test_dist = model(X_test[:,:,0].unsqueeze(1), X_test[:,:,-1].unsqueeze(1))
                 test_loss = NLL(test_dist, y_test).mean()
                 print(f'Test session: S{s + 1}, Test Loss: {test_loss.item():.4f}')
 
@@ -226,10 +259,9 @@ def train_model(dict, sessions):
     return
 
 
-
 def main():
 
-    def load_dict(filename='ppg_filt_dict'):
+    def load_dict(filename='../ppg_filt_dict'):
 
         with open(filename, 'rb') as file:
             data_dict = pickle.load(file)

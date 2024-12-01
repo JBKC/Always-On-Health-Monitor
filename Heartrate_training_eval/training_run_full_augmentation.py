@@ -67,6 +67,8 @@ def train_model(dict, noise_dict, sessions):
     batch_size = 256            # number of windows to be processed together
     n_splits = 4                # number of splits of sessions (subjects)
 
+    print(f'Training Started.')
+
     # create temporal pairs of time windows for both original data and noise data
     x, y, act = temporal_pairs(dict, sessions)
     x_noise, y_noise, _ = temporal_pairs(noise_dict, sessions)
@@ -106,6 +108,7 @@ def train_model(dict, noise_dict, sessions):
             # if split_idx == last_split_idx and session_idx <= last_session_idx:
             #     continue
 
+
             # set test data as the current session s within the current split
             X_test = x[s]
             y_test = y[s]
@@ -128,7 +131,7 @@ def train_model(dict, noise_dict, sessions):
             optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999), eps=1e-08)
 
             # Load checkpoint if available
-            checkpoint_path = f'./models/temporal_attention_model_full_augment_session_S{s+1}.pth'
+            checkpoint_path = f'../models/temporal_attention_model_full_augment_session_S{s+1}.pth'
 
             try:
                 checkpoint = torch.load(checkpoint_path)
@@ -244,8 +247,8 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # load original & adversarial data
-    dict = load_dict(filename='ppg_filt_dict')
-    noise_dict = load_dict(filename='noise_dict')
+    dict = load_dict(filename='../ppg_filt_dict')
+    noise_dict = load_dict(filename='../noise_dict')
 
     train_model(dict, noise_dict, sessions)
 

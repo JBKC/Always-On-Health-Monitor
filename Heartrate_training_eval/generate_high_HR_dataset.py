@@ -22,9 +22,13 @@ class GenerateFullDataset(Dataset):
         :param ratio_sampling: % of total noise data windows to randomly sample
         '''
 
+        print(X.shape)
+        print(y.shape)
+
         # convert input data into torch
         self.X_in = torch.from_numpy(X).float()
         self.y_in = torch.from_numpy(y).float()
+
 
         self.X_noise_in = torch.from_numpy(X_noise).float()
         self.y_noise_in = torch.from_numpy(y_noise).float()
@@ -37,6 +41,7 @@ class GenerateFullDataset(Dataset):
         self.find_clean_idxs()
         self.combine_datasets()
         self.shuffle_dataset()
+        print(f'error check')
 
     def __getitem__(self, index):
         # fetches values of X training data and y labels at a single index
