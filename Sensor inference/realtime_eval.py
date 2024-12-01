@@ -1,3 +1,7 @@
+'''
+Called from PPG_realtime_inference.py script
+'''
+
 import numpy as np
 import torch
 
@@ -12,7 +16,7 @@ def run_inference(x_input, model):
         x_prev = x_input[:, :, -1].unsqueeze(1)         # Previous window
 
         hr_pred = model(x_cur, x_prev).mean.numpy()[0]         # model returns gaussian
-        print(f"Heart rate prediction: {hr_pred:.4f}")
+        print(f"BPM: {hr_pred:.4f}")
 
         return hr_pred
 
