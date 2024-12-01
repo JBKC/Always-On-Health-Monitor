@@ -7,7 +7,7 @@ accelerometer = Adafruit_MMA8451
 import torch
 import numpy as np
 import serial
-from Heartrate_training_eval.temporal_attention_model import SubModel
+from Heartrate_training_eval.temporal_attention_model import TemporalAttentionModel
 import realtime_eval
 import asyncio
 import collections
@@ -15,10 +15,12 @@ import time
 import traceback
 
 
-async def producer(ser, buffer, maxlen):
+async def producer(ser, buffer, maxlen, counter):
     """
     Collects streaming data and appends to a buffer (sliding window).
     """
+
+    print(f'Streaming data....')
     temp = ""  # Temporary buffer for incomplete lines
 
     while True:
@@ -43,31 +45,34 @@ async def producer(ser, buffer, maxlen):
 
                     sample = [ppg, *accel]  # Create sample
                     buffer.append(sample)
-                    print(sample)
 
                     # Maintain sliding window size
                     if len(buffer) > maxlen:
                         buffer.popleft()
 
+                    # increment counter
+                    counter[0] += 1
+
+
 
         await asyncio.sleep(0.01)
 
-async def consumer(buffer, maxlen, model, output):
+async def consumer(buffer, maxlen, model, output, counter):
     '''
     Takes snapshot of queue & passes through model to give HR prediction
     '''
 
-    ### need to create another queue that saves snapshots - for the case where inference of each window takes >2 seconds
-
     while True:
-        if len(buffer) == maxlen:
-            buffer = np.array(buffer)
+        if len(buffer) == maxlen and counter[0] >= 64:
+            # reset counter
+            counter[0] = 0
+
+            snapshot = np.array(buffer)
 
             ### include artifact removal / pre-processing to get x_bvp
 
             # Process the data through the model
-            pred = await asyncio.to_thread(realtime_eval.main, buffer, model)
-
+            pred = await asyncio.to_thread(realtime_eval.main, snapshot, model)
 
             ### pin to output buffer
 
@@ -81,8 +86,10 @@ async def main():
     '''
 
     # initialise model
-    checkpoint = torch.load('../models/temporal_attention_model_full_augment_session_S6.pth')
-    model = SubModel()
+    checkpoint_path = f'../models/temporal_attention_model_session_S7.pth'
+    checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
+
+    model = TemporalAttentionModel()
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
@@ -97,11 +104,12 @@ async def main():
     buffer = collections.deque(maxlen=maxlen)
     # queue for HR predictions
     output = asyncio.Queue()
+    counter = [0]                   # counter to track 2 seconds (64 samples)
 
     # extract + process data concurrently
     async with asyncio.TaskGroup() as tg:
-        task1 = tg.create_task(producer(ser, buffer, maxlen))
-        task2 = tg.create_task(consumer(buffer, maxlen, model, output))
+        task1 = tg.create_task(producer(ser, buffer, maxlen, counter))
+        task2 = tg.create_task(consumer(buffer, maxlen, model, output, counter))
 
     # run tasks
     await asyncio.gather(task1, task2)
