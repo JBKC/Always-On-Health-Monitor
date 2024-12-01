@@ -14,7 +14,6 @@ from torch.utils.data import DataLoader, TensorDataset
 import psutil
 
 
-
 def temporal_pairs(dict, sessions):
     '''
     Create temporal pairs between adjacent windows for all data
@@ -209,7 +208,6 @@ def train_model(dict, sessions):
 
                     print(f'Test session: S{s + 1}, Batch: [{batch_idx + 1}/{len(train_loader)}], '
                           f'Epoch [{epoch + 1}/{n_epochs}], Train Loss: {loss.item():.4f}')
-
 
                 # validation on whole validation set after each epoch
                 model.eval()
