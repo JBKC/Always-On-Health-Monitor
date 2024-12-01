@@ -90,8 +90,6 @@ def train_model(dict, sessions):
     batch_size = 128            # number of windows to be processed together
     n_splits = 4
 
-    print(f'Training Started.')
-
     # create temporal pairs of time windows
     x, y, act = temporal_pairs(dict, sessions)
 
@@ -120,11 +118,10 @@ def train_model(dict, sessions):
 
         # Convert the dataset
         X_train, y_train = torch_convert(X_train, y_train)
-        print(f"X_train shape: {X_train.shape}")
 
         # create TensorDataset and DataLoader for batching
         train_dataset = TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
         # inner LOSO split for testing & validation data
         for session_idx, s in enumerate(split):
@@ -136,17 +133,21 @@ def train_model(dict, sessions):
             # set test data as the current session s within the current split
             X_test = x[s]
             y_test = y[s]
+            X_test = X_test.astype(np.float32)
+            y_test = y_test.astype(np.float32)
             X_test, y_test = torch_convert(X_test, y_test)
-            print(f"X_test shape: {X_test.shape}")
 
             # set validation data (remainder of current split)
             val_idxs = np.array([j for j in split if j != s])
             X_val = np.concatenate([x[j] for j in val_idxs], axis=0)
             y_val = np.concatenate([y[j] for j in val_idxs], axis=0)
-
-            # convert to torch tensors
+            X_val = X_val.astype(np.float32)
+            y_val = y_val.astype(np.float32)
             X_val, y_val = torch_convert(X_val, y_val)
+
+            print(f"X_train shape: {X_train.shape}")
             print(f"X_val shape: {X_val.shape}")
+            print(f"X_test shape: {X_test.shape}")
 
             # train separate model for each test session
             model = TemporalAttentionModel()
@@ -184,6 +185,8 @@ def train_model(dict, sessions):
 
             # training loop
             for epoch in range(epoch +1, n_epochs):
+
+                print(f'Training started: test session = S{s+1}')
 
                 model.train()
 
