@@ -21,20 +21,19 @@ async def producer(ser, buffer, maxlen, counter):
     """
 
     print(f'Streaming data....')
-    temp = ""  # Temporary buffer for incomplete lines
+    temp = ""  # temporary buffer for incomplete lines
 
     while True:
         if ser.in_waiting > 0:
 
-            # Read available data and append to temp
+            # read available data and append to temporary buffer
             raw_data = ser.read(ser.in_waiting).decode('utf-8')
             temp += raw_data
 
-            # Split data into lines
             lines = temp.split("\n")
-            temp = lines[-1]  # Keep incomplete line for the next iteration
+            temp = lines[-1]                # save last (incomplete) part of buffer for next iteration
 
-            # Process complete lines
+            # process complete lines from buffer
             for line in lines[:-1]:
 
                 if line.startswith("ppg:"):
@@ -53,8 +52,6 @@ async def producer(ser, buffer, maxlen, counter):
                     # increment counter
                     counter[0] += 1
 
-
-
         await asyncio.sleep(0.01)
 
 async def consumer(buffer, maxlen, model, output, counter):
@@ -64,10 +61,13 @@ async def consumer(buffer, maxlen, model, output, counter):
 
     while True:
         if len(buffer) == maxlen and counter[0] >= 64:
-            # reset counter
+            # reset counter as full window received
             counter[0] = 0
-
+            # take snapshot from buffer (2 windows) - shape (n_samples, n_channels) = (320, 4)
             snapshot = np.array(buffer)
+            print(snapshot.shape)
+
+
 
             ### include artifact removal / pre-processing to get x_bvp
 
@@ -98,15 +98,15 @@ async def main():
     baud_rate = 115200
     ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
-    maxlen = 320                # holds 2 windows
+    maxlen = 320                # holds 2 overlapping 8-second sliding windows (10 seconds)
 
-    # buffer (deque) to store data in 2 overlapping 8-second sliding windows
+    # buffer (deque) to store data in overlapping windows
     buffer = collections.deque(maxlen=maxlen)
     # queue for HR predictions
     output = asyncio.Queue()
     counter = [0]                   # counter to track 2 seconds (64 samples)
 
-    # extract + process data concurrently
+    # extract & process data concurrently
     async with asyncio.TaskGroup() as tg:
         task1 = tg.create_task(producer(ser, buffer, maxlen, counter))
         task2 = tg.create_task(consumer(buffer, maxlen, model, output, counter))

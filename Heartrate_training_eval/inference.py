@@ -76,9 +76,11 @@ def inference(dict, eval_session):
         print(f"Heart rate labels: {y_test}")
 
         # plotting
-        plt.plot(y_test, color='black',linewidth=1, label='Labels')
-        plt.plot(hrs, color='red', linewidth=1, label='Predictions')
+        time = np.linspace(0, 2 * len(y_test), len(y_test))
+        plt.plot(time, y_test, color='black',linewidth=1, label='Labels')
+        plt.plot(time, hrs, color='red', linewidth=1, label='Predictions')
         plt.legend()
+        plt.xlabel("Time (s)")
         plt.ylabel("Heart Rate (BPM)")
         plt.show()
 
