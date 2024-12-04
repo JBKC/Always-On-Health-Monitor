@@ -8,6 +8,7 @@ import torch
 import numpy as np
 import serial
 from Heartrate_training_eval.temporal_attention_model import TemporalAttentionModel
+import realtime_processing
 import realtime_eval
 import asyncio
 import collections
@@ -65,9 +66,8 @@ async def consumer(buffer, maxlen, model, output, counter):
             counter[0] = 0
             # take snapshot from buffer (2 windows) - shape (n_samples, n_channels) = (320, 4)
             snapshot = np.array(buffer)
-            print(snapshot.shape)
 
-
+            realtime_processing.main(snapshot)
 
             ### include artifact removal / pre-processing to get x_bvp
 
