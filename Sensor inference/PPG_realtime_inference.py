@@ -1,5 +1,6 @@
 '''
-Passes PPG sensor & accelerometer input through trained model to produce real-time heart-rate inference
+Passes PPG sensor & accelerometer input through trained model
+Produces real-time heart-rate prediction every 2 seconds, on a sliding 8-second window
 ppg sensor = DFRobot_Heartrate
 accelerometer = Adafruit_MMA8451
 '''
