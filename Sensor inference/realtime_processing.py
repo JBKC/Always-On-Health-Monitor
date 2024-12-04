@@ -39,7 +39,7 @@ def undo_normalisation(X_norm, ms, stds):
         ms (means): of shape (2, 4)
         stds (standard deviations) of shape (2, 4)
     :return:
-        X: of shape (2, 1, 256)
+        X: of shape (2, 4, 256)
     '''
 
     ms_reshaped = ms[:, :, np.newaxis]
@@ -50,7 +50,8 @@ def undo_normalisation(X_norm, ms, stds):
 def ma_removal(x):
     '''
     Remove motion artifacts from raw PPG data by training on accelerometer_cnn
-    :param x: single array of shape (n_samples, n_channels)
+    :param x: single array of shape (n_samples, n_channels) = (320,4)
+    :return x_bvp: cleaned signal array of shape (n_windows, n_channels, n_samples) = (2,1,256)
     '''
 
     # transform data into shape (n_windows, n_channels, n_samples) = (2, 4, 256)
@@ -60,8 +61,6 @@ def ma_removal(x):
     n_epochs = 1000
     model = AdaptiveLinearModel()
     optimizer = optim.SGD(model.parameters(), lr=1e-7, momentum=1e-2)
-    initial_state = model.state_dict()
-    model.load_state_dict(initial_state)
 
     # z-normalisation
     x_in, ms, stds = z_normalise(x)
@@ -92,20 +91,12 @@ def ma_removal(x):
 
         # get BVP into original shape: (2, 1, 256)
         x_bvp = torch.unsqueeze(x_bvp, dim=1).numpy()
-        # print(x_bvp.shape)
 
-        # denormalise
+        # denormalise & take only BVP
         x_bvp = undo_normalisation(x_bvp, ms, stds)
-        print(x_bvp.shape)
-
-        # keep only BVP (remove ACC)
         x_bvp = np.expand_dims(x_bvp[:,0,:], axis=1)
-        # print(x_bvp.shape)
 
-
-    return
-
-
+    return x_bvp
 
 
 def main(snapshot):
@@ -113,9 +104,7 @@ def main(snapshot):
     Accepts 2 windows in form of 10-second snapshot of shape (320,4)
     '''
 
-    ma_removal(snapshot)
-
-    return
+    return ma_removal(snapshot)
 
 if __name__ == '__main__':
     main()

@@ -67,12 +67,11 @@ async def consumer(buffer, maxlen, model, output, counter):
             # take snapshot from buffer (2 windows) - shape (n_samples, n_channels) = (320, 4)
             snapshot = np.array(buffer)
 
-            realtime_processing.main(snapshot)
-
-            ### include artifact removal / pre-processing to get x_bvp
+            # motion artifact removal
+            x_bvp = realtime_processing.main(snapshot)
 
             # Process the data through the model
-            pred = await asyncio.to_thread(realtime_eval.main, snapshot, model)
+            pred = await asyncio.to_thread(realtime_eval.main, x_bvp, model)
 
             ### pin to output buffer
 

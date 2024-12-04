@@ -20,15 +20,17 @@ def run_inference(x_input, model):
 
         return hr_pred
 
-def main(buffer, model):
+def main(x, model):
+    '''
+    :param x: shape (2,1,256) = x_cur and x_prev pairing of windows
+    :param model: attention-based model
+    '''
 
-    # reshape for model input (x_cur, x_prev) - ie. lastmost and firstmost 8 second portions of the 10 second window
-    x_input = np.stack((buffer[64:,0], buffer[:256,0]), axis=-1)
-    x_input = x_input[np.newaxis, :]
-    # print(x_input.shape)              # Shape: (1, 256, 2)
-
-    # Run inference
-    run_inference(x_input, model)
+    # reshape for model input (1,256,2)
+    x = np.transpose(x, (1, 2, 0))
+    print(x.shape)
+    # run inference
+    run_inference(x, model)
 
 
 if __name__ == '__main__':
