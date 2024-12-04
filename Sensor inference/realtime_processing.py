@@ -83,7 +83,7 @@ def ma_removal(x):
         loss.backward()
         optimizer.step()
 
-        print(f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
+        # print(f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
         # subtract the motion artifact estimate from raw signal to extract cleaned BVP
         with torch.no_grad():

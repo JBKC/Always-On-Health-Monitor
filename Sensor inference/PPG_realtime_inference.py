@@ -55,29 +55,44 @@ async def producer(ser, buffer, maxlen, counter):
 
         await asyncio.sleep(0.01)
 
-async def consumer(buffer, maxlen, model, output, counter):
+async def consumer(buffer, maxlen, window_queue, counter):
     '''
-    Takes snapshot of queue & passes through model to give HR prediction
+    Takes snapshot of queue & saves for processing
     '''
 
     while True:
         if len(buffer) == maxlen and counter[0] >= 64:
-            # reset counter as full window received
-            counter[0] = 0
+            counter[0] = 0                  # reset counter as full window received
+
             # take snapshot from buffer (2 windows) - shape (n_samples, n_channels) = (320, 4)
             snapshot = np.array(buffer)
 
-            # motion artifact removal
-            x_bvp = realtime_processing.main(snapshot)
-
-            # Process the data through the model
-            pred = await asyncio.to_thread(realtime_eval.main, x_bvp, model)
-
-            ### pin to output buffer
+            # add to window_queue to hold snapshots for concurrent processing
+            await window_queue.put(snapshot)
 
         await asyncio.sleep(0)
 
+async def processing(window_queue, model, output):
+    '''
+    Processes snapshots from window_queue and appends predictions to the output
+    '''
+    while True:
+        # get next snapshot from the queue
+        snapshot = await window_queue.get()
 
+        # motion artifact removal
+        x_bvp = await asyncio.to_thread(realtime_processing.main, snapshot)
+
+        # HR inference
+        hr_pred = await asyncio.to_thread(realtime_eval.main, x_bvp, model)
+        print(f"BPM: {hr_pred:.4f}")
+
+        # pin prediction to output buffer
+        output.append(hr_pred)
+        print(f'BPM history: {output}')
+
+        # mark task as done
+        window_queue.task_done()
 
 async def main():
     '''
@@ -99,19 +114,19 @@ async def main():
 
     maxlen = 320                # holds 2 overlapping 8-second sliding windows (10 seconds)
 
-    # buffer (deque) to store data in overlapping windows
-    buffer = collections.deque(maxlen=maxlen)
-    # queue for HR predictions
-    output = asyncio.Queue()
-    counter = [0]                   # counter to track 2 seconds (64 samples)
+    buffer = collections.deque(maxlen=maxlen)               # buffer (deque) to store data in overlapping windows
+    window_queue = asyncio.Queue()                          # queue for storing windows for processing
+    output = []                                             # list of HR predictions
+    counter = [0]                                           # counter to track 2 seconds (64 samples)
 
     # extract & process data concurrently
     async with asyncio.TaskGroup() as tg:
         task1 = tg.create_task(producer(ser, buffer, maxlen, counter))
-        task2 = tg.create_task(consumer(buffer, maxlen, model, output, counter))
+        task2 = tg.create_task(consumer(buffer, maxlen, window_queue, counter))
+        task3 = tg.create_task(processing(window_queue, model, output))
 
     # run tasks
-    await asyncio.gather(task1, task2)
+    await asyncio.gather(task1, task2, task3)
 
 
 if __name__ == '__main__':

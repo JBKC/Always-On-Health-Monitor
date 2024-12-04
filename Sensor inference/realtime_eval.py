@@ -16,7 +16,6 @@ def run_inference(x_input, model):
         x_prev = x_input[:, :, -1].unsqueeze(1)         # Previous window
 
         hr_pred = model(x_cur, x_prev).mean.numpy()[0]         # model returns gaussian
-        print(f"BPM: {hr_pred:.4f}")
 
         return hr_pred
 
@@ -28,9 +27,8 @@ def main(x, model):
 
     # reshape for model input (1,256,2)
     x = np.transpose(x, (1, 2, 0))
-    print(x.shape)
-    # run inference
-    run_inference(x, model)
+
+    return run_inference(x, model)
 
 
 if __name__ == '__main__':
