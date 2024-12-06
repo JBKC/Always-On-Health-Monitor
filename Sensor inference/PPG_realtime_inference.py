@@ -13,9 +13,11 @@ import realtime_processing
 import realtime_eval
 import asyncio
 import collections
-import time
-import traceback
-
+from bleak import BleakClient, BleakScanner
+import uuid
+import sys
+import platform
+import re
 
 async def producer(ser, buffer, maxlen, counter):
     """
@@ -73,7 +75,7 @@ async def consumer(buffer, maxlen, window_queue, counter):
 
         await asyncio.sleep(0)
 
-async def processing(window_queue, model, output):
+async def processing(ser, window_queue, model, output):
     '''
     Processes snapshots from window_queue and appends predictions to the output
     '''
@@ -92,6 +94,8 @@ async def processing(window_queue, model, output):
         output.append(hr_pred)
         print(f'BPM history: {output}')
 
+        ser.write(f'{hr_pred:.4f}\n'.encode())
+
         # mark task as done
         window_queue.task_done()
 
@@ -108,10 +112,13 @@ async def main():
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
-    # get stream from Arduino
+    ## option 1 = USB
     serial_port = '/dev/cu.usbmodem14101'
-    baud_rate = 115200
+    baud_rate = 9600
     ser = serial.Serial(serial_port, baud_rate, timeout=1)
+
+    # Connection is confirmed; proceed with tasks
+    print("Running model inference...")
 
     maxlen = 320                # holds 2 overlapping 8-second sliding windows (10 seconds)
 
@@ -124,7 +131,7 @@ async def main():
     async with asyncio.TaskGroup() as tg:
         task1 = tg.create_task(producer(ser, buffer, maxlen, counter))
         task2 = tg.create_task(consumer(buffer, maxlen, window_queue, counter))
-        task3 = tg.create_task(processing(window_queue, model, output))
+        task3 = tg.create_task(processing(ser, window_queue, model, output))
 
     # run tasks
     await asyncio.gather(task1, task2, task3)
