@@ -26,7 +26,7 @@ void setup() {
   lcd.print("Waiting...");
   analogWrite(12, 100); // Brightness level (0 to 255)
 
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   if (!mma.begin()) {
     Serial.println("Could not find accelerometer");
@@ -37,14 +37,13 @@ void setup() {
 
 void loop() {
 
+    unsigned long currentMillis = millis(); // Capture the current time
+
     if (millis() - lastTime >= interval) {
       lastTime = millis();
  
       // get ppg data directly from pin
       float ppg = analogRead(A0);
-      Serial.print("ppg:");
-      Serial.println(ppg, 2);     // 2 decimal places
-
       // accelerometer data
       sensors_event_t event;
       mma.getEvent(&event);
@@ -52,13 +51,9 @@ void loop() {
       float ay = event.acceleration.y / conv;
       float az = event.acceleration.z / conv;
 
-      // Send the data in the requested format: ax, ay, az
-      Serial.print("accel:");
-      Serial.print(ax,2);
-      Serial.print(",");
-      Serial.print(ay,2);
-      Serial.print(",");
-      Serial.println(az,2);
+      // Send the data
+      Serial.println(String(currentMillis) + "," + String(ppg, 2) + "," + String(ax, 2) + "," + String(ay, 2) + "," + String(az, 2));
+
     }
 
       // Receive data from HM-10
@@ -77,3 +72,4 @@ void loop() {
     }
   }
 }
+
