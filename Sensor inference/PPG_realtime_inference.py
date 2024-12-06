@@ -13,50 +13,33 @@ import realtime_processing
 import realtime_eval
 import asyncio
 import collections
-from bleak import BleakClient, BleakScanner
-import uuid
-import sys
-import platform
-import re
 
 async def producer(ser, buffer, maxlen, counter):
     """
-    Collects streaming data and appends to a buffer (sliding window).
+    Parses streaming data and appends to a buffer (sliding window).
     """
 
     print(f'Streaming data....')
-    temp = ""  # temporary buffer for incomplete lines
 
     while True:
         if ser.in_waiting > 0:
+            packet = ser.readline().decode('utf-8').strip()
+            parts = packet.split(',')
+            ppg = float(parts[1])
+            accel = tuple((float(parts[2]), float(parts[3]), float(parts[4])))
 
-            # read available data and append to temporary buffer
-            raw_data = ser.read(ser.in_waiting).decode('utf-8')
-            temp += raw_data
+            sample = [ppg, *accel]
+            buffer.append(sample)
+            # print(sample)
 
-            lines = temp.split("\n")
-            temp = lines[-1]                # save last (incomplete) part of buffer for next iteration
+            # Maintain sliding window size
+            if len(buffer) > maxlen:
+                buffer.popleft()
 
-            # process complete lines from buffer
-            for line in lines[:-1]:
+            # increment counter
+            counter[0] += 1
 
-                if line.startswith("ppg:"):
-                    ppg = float(line.split(":")[1])
-
-                elif line.startswith("accel:"):
-                    accel = tuple(map(float, line.split(":")[1].split(",")))
-
-                    sample = [ppg, *accel]  # Create sample
-                    buffer.append(sample)
-
-                    # Maintain sliding window size
-                    if len(buffer) > maxlen:
-                        buffer.popleft()
-
-                    # increment counter
-                    counter[0] += 1
-
-        await asyncio.sleep(0.01)
+            await asyncio.sleep(0)
 
 async def consumer(buffer, maxlen, window_queue, counter):
     '''
@@ -64,7 +47,6 @@ async def consumer(buffer, maxlen, window_queue, counter):
     '''
 
     while True:
-        print(len(buffer))
         if len(buffer) == maxlen and counter[0] >= 64:
             counter[0] = 0                  # reset counter as full window received
 
@@ -115,7 +97,7 @@ async def main():
 
     ## option 1 = USB
     serial_port = '/dev/cu.usbmodem14101'
-    baud_rate = 9600
+    baud_rate = 115200
     ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
     maxlen = 320                # holds 2 overlapping 8-second sliding windows (10 seconds)
