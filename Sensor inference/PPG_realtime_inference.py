@@ -64,6 +64,7 @@ async def consumer(buffer, maxlen, window_queue, counter):
     '''
 
     while True:
+        print(len(buffer))
         if len(buffer) == maxlen and counter[0] >= 64:
             counter[0] = 0                  # reset counter as full window received
 
@@ -116,9 +117,6 @@ async def main():
     serial_port = '/dev/cu.usbmodem14101'
     baud_rate = 9600
     ser = serial.Serial(serial_port, baud_rate, timeout=1)
-
-    # Connection is confirmed; proceed with tasks
-    print("Running model inference...")
 
     maxlen = 320                # holds 2 overlapping 8-second sliding windows (10 seconds)
 
