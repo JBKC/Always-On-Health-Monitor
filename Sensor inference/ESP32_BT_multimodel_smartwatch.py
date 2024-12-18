@@ -14,11 +14,11 @@ import realtime_activity_eval
 import asyncio
 import collections
 import time
+import logging
 
-
-async def producer(ser, buffer, maxlen, counter):
+async def producer(ser, buffer, counter):
     """
-    Parses streaming data and appends to a buffer (sliding window).
+    Parses streaming data and appends to a buffer (sliding window)
     """
 
     print(f'Streaming data....')
@@ -27,19 +27,10 @@ async def producer(ser, buffer, maxlen, counter):
         if ser.in_waiting > 0:
             packet = ser.readline().decode('utf-8').strip()
             parts = packet.split(',')
-            ppg = float(parts[1])
-            accel = tuple((float(parts[2]), float(parts[3]), float(parts[4])))
             # print(parts)
 
-            sample = [ppg, *accel]
-            buffer.append(sample)
-
-            # Maintain sliding window size
-            if len(buffer) > maxlen:
-                buffer.popleft()
-
-            # increment counter
-            counter[0] += 1
+            buffer.append(tuple((float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]))))
+            counter[0] += 1             # increment counter
 
             await asyncio.sleep(0)
 
@@ -69,14 +60,26 @@ async def processing(ser, window_queue, hr_model, act_model, hr_output, act_outp
         # get next snapshot from the queue
         snapshot = await window_queue.get()
 
-        # concurrent processing for both models
-        hr_processing = asyncio.create_task(asyncio.to_thread(realtime_processing.main, snapshot))
-        act_processing = asyncio.create_task(asyncio.to_thread(realtime_activity_processing.main, snapshot, multi=1))
-        # run tasks
-        start = time.time()
-        x_bvp, act = await asyncio.gather(hr_processing, act_processing)
-        end = time.time()
-        print(f"Total processing time: {end - start:.2f} seconds")
+        # # concurrent processing for both models
+        # hr_processing = asyncio.create_task(asyncio.to_thread(realtime_processing.main, snapshot))
+        # act_processing = asyncio.create_task(asyncio.to_thread(realtime_activity_processing.main, snapshot, multi=1))
+        # # run tasks
+        # start = time.time()
+        # x_bvp, act = await asyncio.gather(hr_processing, act_processing)
+        # end = time.time()
+        # print(f"Total processing time: {end - start:.2f} seconds")
+
+        # Run HR Processing
+        start_hr = time.time()
+        x_bvp = await asyncio.to_thread(realtime_processing.main, snapshot)
+        end_hr = time.time()
+        print(f"HR processing time: {end_hr - start_hr:.2f} seconds")
+
+        # Run Activity Processing
+        start_act = time.time()
+        act = await asyncio.to_thread(realtime_activity_processing.main, snapshot, multi=1)
+        end_act = time.time()
+        print(f"Activity processing time: {end_act - start_act:.2f} seconds")
 
         # concurrent inference for both models
         hr_inference = asyncio.create_task(asyncio.to_thread(realtime_eval.main, x_bvp, hr_model))
@@ -142,22 +145,22 @@ async def main():
         print(f"Failed to connect to the Bluetooth device: {e}")
         return
 
-    maxlen = 320                # holds 2 overlapping 8-second sliding windows (10 seconds)
-
+    maxlen = 320                                            # holds 2 overlapping 8-second sliding windows (10 seconds)
+    counter = [0]                                           # counter to track 2 seconds (64 samples)
     buffer = collections.deque(maxlen=maxlen)               # buffer (deque) to store raw data in overlapping windows
-    window_queue = asyncio.Queue()                          # queue for storing windows for processing
+    window_queue = asyncio.Queue()                          # queue for storing windows for processing (no max length)
     hr_output = asyncio.Queue()
     act_output = asyncio.Queue()
-    counter = [0]                                           # counter to track 2 seconds (64 samples)
 
-    # extract & process data concurrently
+
+    #### extract & process data concurrently
     async with asyncio.TaskGroup() as tg:
-        task1 = tg.create_task(producer(ser, buffer, maxlen, counter))
-        task2 = tg.create_task(consumer(buffer, maxlen, window_queue, counter))
-        task3 = tg.create_task(processing(ser, window_queue, hr_model, act_model, hr_output, act_output))
+        tg.create_task(producer(ser, buffer, counter))
+        tg.create_task(consumer(buffer, maxlen, window_queue, counter))
+        tg.create_task(processing(ser, window_queue, hr_model, act_model, hr_output, act_output))
 
     # run tasks
-    await asyncio.gather(task1, task2, task3)
+    await asyncio.gather()
 
 
 if __name__ == '__main__':
