@@ -19,8 +19,6 @@ class AdaptiveLinearModel(nn.Module):
         self.conv2 = nn.Conv2d(in_channels=1, out_channels=1,
                                kernel_size=(3, 1), padding='valid')
 
-        self.initial_state = self.state_dict()          # initial weights of model
-
     def forward(self, X):
         '''
         Define forward pass of adaptive filter model
@@ -28,14 +26,12 @@ class AdaptiveLinearModel(nn.Module):
         :return: X: shape (batch_size, 256)
         '''
 
-        self.train()
-
         X = self.conv1(X)                   # 1st conv layer
         # no specified activation function (linear)
         X = self.conv2(X)              # 2nd conv layer
 
         # remove redundant dimensions
-        return X[:, 0, 0, :]
+        return torch.squeeze(X)
 
     def adaptive_loss(self, y_true, y_pred):
         '''
@@ -46,19 +42,13 @@ class AdaptiveLinearModel(nn.Module):
         :return: mean squared error between y_true and y_pred
         '''
 
-        # remove redundant dimensions
-        y_true = y_true[:, 0, 0, :]
-
         # take FFT
         y_true_fft = torch.fft.fft(y_true)
         y_pred_fft = torch.fft.fft(y_pred)
 
-        # calculate error (raw ppg - motion artifact estimate)
-        e = torch.abs(y_true_fft - y_pred_fft)
-        # single MSE for each batch
-        e = torch.sum(e ** 2, dim=-1)
+        # calculate MSE where error = raw ppg - motion artifact estimate
+        e = torch.abs(y_true_fft - y_pred_fft) ** 2
 
-        # single MSE value across all batches
         return torch.mean(e)
 
 
