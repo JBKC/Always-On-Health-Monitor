@@ -10,6 +10,8 @@ import torch
 import torch.optim as optim
 import datetime
 from scipy.signal import butter, filtfilt
+import torchaudio.functional as F
+
 
 def z_normalise(X):
     '''
@@ -44,20 +46,15 @@ def undo_normalisation(X_norm, ms, stds):
 
     return (X_norm * stds[:, :, np.newaxis]) + ms[:, :, np.newaxis]
 
-def butter_filter_torch(signal, btype, lowcut=None, highcut=None, fs=32, order=5):
+def butter_filter(signal, btype, lowcut=None, highcut=None, fs=32, order=5):
     """
-    Applies a Butterworth filter to a PyTorch tensor.
-    :param signal: PyTorch tensor of shape (n_channels, n_samples)
-    :param btype: Type of filter ('lowpass', 'highpass', 'bandpass')
-    :param lowcut: Low cutoff frequency (for bandpass/highpass)
-    :param highcut: High cutoff frequency (for bandpass/lowpass)
-    :param fs: Sampling frequency
-    :param order: Filter order
-    :return: Filtered PyTorch tensor of shape (n_channels, n_samples)
+    Applies Butterworth filter
+    :param signal: input signal of shape (n_channels, n_samples)
+    :return smoothed: smoothed signal of shape (n_channels, n_samples)
     """
 
-    # Compute Butterworth filter coefficients
     nyquist = 0.5 * fs
+
     if btype == 'bandpass':
         low = lowcut / nyquist
         high = highcut / nyquist
@@ -68,36 +65,13 @@ def butter_filter_torch(signal, btype, lowcut=None, highcut=None, fs=32, order=5
     elif btype == 'highpass':
         low = lowcut / nyquist
         b, a = butter(order, low, btype=btype)
-    else:
-        raise ValueError(f"Unsupported filter type: {btype}")
 
-    # Convert coefficients to PyTorch tensors
+    # convert to torch
     b = torch.tensor(b, dtype=torch.float32)
     a = torch.tensor(a, dtype=torch.float32)
+    signal = torch.tensor(signal, dtype=torch.float32)
 
-    # Helper function for filtering
-    def apply_filter(signal, b, a):
-        """
-        Applies IIR filtering to the signal using direct-form II transposed structure.
-        """
-        filtered = torch.zeros_like(signal)
-        for i in range(len(b)):
-            if i == 0:
-                filtered[:, i:] += b[i] * signal[:, i:]
-            else:
-                filtered[:, i:] += b[i] * signal[:, :-i]
-        for i in range(1, len(a)):
-            filtered[:, i:] -= a[i] * filtered[:, :-i]
-        return filtered
-
-    # Apply filter forward and backward for zero-phase filtering
-    filtered = apply_filter(signal, b, a)
-    filtered = torch.flip(filtered, dims=[-1])
-    filtered = apply_filter(filtered, b, a)
-    filtered = torch.flip(filtered, dims=[-1])
-
-    return filtered
-
+    return F.filtfilt(signal, a_coeffs=a, b_coeffs=b, clamp=False)
 
 def ma_removal(x):
     '''
@@ -116,21 +90,19 @@ def ma_removal(x):
     # z-normalisation
     x_in, ms, stds = z_normalise(x)
 
-    # filter natively in Pytorch ####
-    x_acc = butter_filter_torch(signal=torch.from_numpy(x_in[:, 1:, :]).float().unsqueeze(1), btype='lowpass', highcut=10, fs=32)
-    x_ppg = butter_filter_torch(signal=torch.from_numpy(x_in[:, 0, :]).float(), btype='bandpass', lowcut=0.3, highcut=10, fs=32)
+    # filter
+    x_acc = butter_filter(signal=x_in[:, 1:, :], btype='lowpass', highcut=10)
+    x_ppg = butter_filter(signal=x_in[:, 0, :], btype='bandpass', lowcut=0.3, highcut=10)
+    x_acc = x_acc.unsqueeze(1)
 
-    print(x_acc.shape)                  # training data = acc = (2, 1, 3, 256)
-    print(x_ppg.shape)                  # labels = ppg = (2, 256)
+    # print(x_acc.shape)                  # training data = acc = (2, 1, 3, 256)
+    # print(x_ppg.shape)                  # labels = ppg = (2, 256)
 
-    x_ppg_json = x_ppg[0, :].tolist()
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    with open(f'x_ppg_{timestamp}.json', 'a') as f:
-        json.dump(x_ppg_json, f)
-        f.write('\n')  # Separate each entry
-
-    # x_acc = torch.from_numpy(np.expand_dims(x_acc, axis=1)).float()
-    # x_ppg = torch.from_numpy(x_ppg).float()
+    # x_ppg_json = x_ppg[0, :].tolist()
+    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    # with open(f'x_ppg_{timestamp}.json', 'a') as f:
+    #     json.dump(x_ppg_json, f)
+    #     f.write('\n')  # Separate each entry
 
     losses = []
 
