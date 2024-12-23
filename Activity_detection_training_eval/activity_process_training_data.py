@@ -103,13 +103,15 @@ def save_data(s, data_dict, root_dir):
 
         # applying filtering ranges to PPG signal
         data_dict[s]['ppg'] = {
-            'og': data_dict[s]['ppg'],
+            'og': (data_dict[s]['ppg']),
             'c': butter_filter(signal=data_dict[s]['ppg'], btype='bandpass', lowcut=0.5, highcut=4),   # cardiac
             'r': butter_filter(signal=data_dict[s]['ppg'],btype='bandpass',lowcut=0.2,highcut=0.35),   # respiratory
             'm': butter_filter(signal=data_dict[s]['ppg'],btype='highpass',lowcut=4)                   # motion artifacts
         }
 
-        # plot_inputs([ data_dict[s]['ppg'],data_dict[s]['ppg_c'],data_dict[s]['ppg_r'],data_dict[s]['ppg_m'] ])
+        # plot_inputs([data_dict[s]['ppg'], data_dict[s]['ppg_c'], data_dict[s]['ppg_r'], data_dict[s]['ppg_m']])
+        # plt.plot(data_dict[s]['acc'][0,:])
+        # plt.show()
 
         # filter accelerometer signal
         data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'],btype='bandpass',lowcut=0.3,highcut=10)
@@ -127,9 +129,27 @@ def save_data(s, data_dict, root_dir):
 
     return data_dict
 
+def z_normalise(X):
+    '''
+    Z-normalises data for a single window
+    :param X: of shape (n_channels, 256)
+    :return:
+        X_norm: of shape (n_channels, 256)
+    '''
+
+    # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4, 1)
+    ms = X.mean(axis=1, keepdims=True)
+    stds = X.std(axis=1, keepdims=True)
+
+    # Z-normalisation
+    X_norm = (X - ms) / np.where(stds != 0, stds, 1)
+
+    return X_norm
+
 def window_data(data_dict, s):
     '''
     Segment data into windows of 8 seconds with 2 second overlap. Only used when saving down raw data for first time
+    Also z-normalises the data
     :param data_dict: dictionary with all signals in arrays for given session
     :return: dictionary of windowed signals containing X and Y data
         ppg.shape = (n_windows, 1, 256)
@@ -167,7 +187,7 @@ def window_data(data_dict, s):
                     start = i * step
                     end = start + window
                     # apply over sub-dictionaries
-                    data_dict[s][k][j][i, :, :] = values[j][:, start:end]
+                    data_dict[s][k][j][i, :, :] = z_normalise(values[j][:, start:end])
 
 
         if k == 'acc':
@@ -175,7 +195,7 @@ def window_data(data_dict, s):
             for i in range(n_windows):
                 start = i * step
                 end = start + window
-                data_dict[s][k][i, :, :] = values[:, start:end]
+                data_dict[s][k][i, :, :] = z_normalise(values[:, start:end])
 
         if k == 'activity':
             data_dict[s][k] = np.zeros((n_windows,))
@@ -210,7 +230,6 @@ def main():
 
 
     sessions = [f'S{i}' for i in range(1, 16)]
-
 
     save_dict(sessions, "ppg_dalia_dict_ppg_crm_v2")
 
