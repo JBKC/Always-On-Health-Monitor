@@ -1,5 +1,5 @@
 '''
-Contains artifact removal on a realtime stream of sensor data
+Performs artifact removal on a realtime stream of sensor data
 '''
 
 import pickle
@@ -13,9 +13,37 @@ from scipy.signal import butter, filtfilt
 import torchaudio.functional as F
 
 
+def butter_filter(signal, btype, lowcut=None, highcut=None, fs=32, order=5):
+    """
+    Applies Butterworth filter
+    :param signal: input signal of shape (n_channels, n_samples)
+    :return smoothed: smoothed signal of shape (n_channels, n_samples)
+    """
+
+    nyquist = 0.5 * fs
+
+    if btype == 'bandpass':
+        low = lowcut / nyquist
+        high = highcut / nyquist
+        b, a = butter(order, [low, high], btype=btype)
+    elif btype == 'lowpass':
+        high = highcut / nyquist
+        b, a = butter(order, high, btype=btype)
+    elif btype == 'highpass':
+        low = lowcut / nyquist
+        b, a = butter(order, low, btype=btype)
+
+    # # convert to torch
+    b = torch.tensor(b, dtype=torch.float32)
+    a = torch.tensor(a, dtype=torch.float32)
+
+    return F.filtfilt(signal, a_coeffs=a, b_coeffs=b, clamp=False)
+    # return np.array([filtfilt(b, a, channel) for channel in signal])
+
+
 def z_normalise(X):
     '''
-    Z-normalises data for all windows, across each channel, using vectorisation
+    Z-normalises data for windows independently, across each channel, using vectorisation
     :param X: of shape (2, 4, 256)
     :return:
         X_norm: of shape (2, 4, 256)
@@ -46,32 +74,6 @@ def undo_normalisation(X_norm, ms, stds):
 
     return (X_norm * stds[:, :, np.newaxis]) + ms[:, :, np.newaxis]
 
-def butter_filter(signal, btype, lowcut=None, highcut=None, fs=32, order=5):
-    """
-    Applies Butterworth filter
-    :param signal: input signal of shape (n_channels, n_samples)
-    :return smoothed: smoothed signal of shape (n_channels, n_samples)
-    """
-
-    nyquist = 0.5 * fs
-
-    if btype == 'bandpass':
-        low = lowcut / nyquist
-        high = highcut / nyquist
-        b, a = butter(order, [low, high], btype=btype)
-    elif btype == 'lowpass':
-        high = highcut / nyquist
-        b, a = butter(order, high, btype=btype)
-    elif btype == 'highpass':
-        low = lowcut / nyquist
-        b, a = butter(order, low, btype=btype)
-
-    # convert to torch
-    b = torch.tensor(b, dtype=torch.float32)
-    a = torch.tensor(a, dtype=torch.float32)
-    signal = torch.tensor(signal, dtype=torch.float32)
-
-    return F.filtfilt(signal, a_coeffs=a, b_coeffs=b, clamp=False)
 
 def ma_removal(x):
     '''
@@ -87,12 +89,13 @@ def ma_removal(x):
 
     # transform data into shape (n_windows, n_channels, n_samples) = (2, 4, 256)
     x = np.stack((x[64:, :].T, x[:256, :].T), axis=0)
-    # z-normalisation
-    x_in, ms, stds = z_normalise(x)
 
-    # filter
-    x_acc = butter_filter(signal=x_in[:, 1:, :], btype='lowpass', highcut=10)
-    x_ppg = butter_filter(signal=x_in[:, 0, :], btype='bandpass', lowcut=0.3, highcut=10)
+    x = torch.tensor(x, dtype=torch.float32)
+
+    # filter & normalize
+    x_ppg,ms,stds = z_normalise(butter_filter(signal=x[:, 0:1, :], btype='bandpass', lowcut=0.3, highcut=10))
+    x_acc,_,_ = z_normalise(butter_filter(signal=x[:, 1:, :], btype='lowpass', highcut=10))
+    x_ppg = x_ppg.squeeze(1)
     x_acc = x_acc.unsqueeze(1)
 
     # print(x_acc.shape)                  # training data = acc = (2, 1, 3, 256)
@@ -126,7 +129,7 @@ def ma_removal(x):
         x_bvp = x_ppg - model(x_acc)
 
     # get BVP into original shape: (2, 1, 256) and denormalise
-    x_bvp = undo_normalisation(torch.unsqueeze(x_bvp, dim=1).numpy(), ms, stds)
+    x_bvp = undo_normalisation(torch.unsqueeze(x_bvp, dim=1).numpy(), ms.numpy(), stds.numpy())
 
     # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     # with open(f'losses_{timestamp}.json', 'a') as f:
