@@ -107,6 +107,12 @@ def ma_removal(x):
     #     json.dump(x_ppg_json, f)
     #     f.write('\n')  # Separate each entry
 
+    # x_acc_json = x_acc[0, 0, 0, :].tolist()
+    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    # with open(f'x_acc_{timestamp}.json', 'a') as f:
+    #     json.dump(x_acc_json, f)
+    #     f.write('\n')  # Separate each entry
+
     losses = []
 
     # training loop
