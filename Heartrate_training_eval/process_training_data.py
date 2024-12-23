@@ -26,6 +26,31 @@ def save_data(s, data_dict, root_dir):
     :return: data_dict: filled dictionary with all PPG Dalia data
     '''
 
+    def butter_filter(signal, btype, lowcut=None, highcut=None, fs=32, order=5):
+        """
+        Applies Butterworth filter
+        :param signal: input signal of shape (n_channels, n_samples)
+        :return smoothed: smoothed signal of shape (n_channels, n_samples)
+        """
+
+        nyquist = 0.5 * fs
+
+        if btype == 'bandpass':
+            low = lowcut / nyquist
+            high = highcut / nyquist
+            b, a = butter(order, [low, high], btype=btype)
+        elif btype == 'lowpass':
+            high = highcut / nyquist
+            b, a = butter(order, high, btype=btype)
+        elif btype == 'highpass':
+            low = lowcut / nyquist
+            b, a = butter(order, low, btype=btype)
+
+        # apply filter using filtfilt (zero-phase filtering)
+        filtered = np.array([filtfilt(b, a, channel) for channel in signal])
+
+        return filtered
+
     with open(f'{root_dir}/ppg+dalia/{s}/{s}.pkl', 'rb') as file:
 
         print(f'saving {s}')
@@ -41,6 +66,12 @@ def save_data(s, data_dict, root_dir):
         data_dict[s]['acc'] = data_dict[s]['acc'][:-38,:].T             # (3, n_samples)
         data_dict[s]['label'] = data_dict[s]['label'][:-1]              # (n_windows,)
         data_dict[s]['activity'] = data_dict[s]['activity'][:-1,:].T    # (1, n_samples)
+
+        # filter accelerometer data
+        data_dict[s]['acc'] = butter_filter(signal=data_dict[s]['acc'], btype='lowpass', highcut=10)
+
+        # plt.plot(data_dict[s]['ppg'][0,:])
+        # plt.show()
 
         # window data
         data_dict = window_data(data_dict, s)
@@ -113,18 +144,14 @@ def z_normalise(X):
         stds (standard deviations) of shape (n_windows, 4)
     '''
 
-    # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4)
-    ms = np.mean(X, axis=2)
-    stds = np.std(X, axis=2)
-
-    # reshape ms and stds to allow broadcasting
-    ms_reshaped = ms[:, :, np.newaxis]
-    stds_reshaped = stds[:, :, np.newaxis]
+    # calculate mean and stdev for each channel in each window - creates shape (n_windows, 4, 1)
+    ms = X.mean(axis=2, keepdims=True)
+    stds = X.std(axis=2, keepdims=True)
 
     # Z-normalisation
-    X_norm = (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
+    X_norm = (X - ms) / np.where(stds != 0, stds, 1)
 
-    return X_norm, ms, stds
+    return X_norm, ms.squeeze(axis=2), stds.squeeze(axis=2)
 
 def undo_normalisation(X_norm, ms, stds):
     '''
@@ -141,6 +168,23 @@ def undo_normalisation(X_norm, ms, stds):
     stds_reshaped = stds[:, :, np.newaxis]
 
     return (X_norm * np.where(stds_reshaped != 0, stds_reshaped, 1)) + ms_reshaped
+
+def window_z_normalise(X):
+    '''
+    Z-normalises data for a single window, for X_BVP, using vectorisation
+    :param X: of shape (n_windows, 1, 256)
+    :return: X_norm: of shape (n_windows, 1, 256)
+    '''
+
+    # calculate mean and stdev for each channel in each window
+    ms = np.mean(X, axis=2)
+    stds = np.std(X, axis=2)
+
+    # reshape ms and stds to allow broadcasting
+    ms_reshaped = ms[:, :, np.newaxis]
+    stds_reshaped = stds[:, :, np.newaxis]
+
+    return (X - ms_reshaped) / np.where(stds_reshaped != 0, stds_reshaped, 1)
 
 def ma_removal(data_dict, sessions):
     '''
@@ -166,6 +210,7 @@ def ma_removal(data_dict, sessions):
 
         # concatenate ppg + accelerometer signal data -> (n_windows, 4, 256)
         X = np.concatenate((data_dict[s]['ppg'], data_dict[s]['acc']), axis=1)
+        act = data_dict[s]['activity']  # Activity labels
 
         # find indices of activity changes (marks batches)
         idx = np.argwhere(np.abs(np.diff(data_dict[s]['activity'])) > 0).flatten() +1
@@ -194,6 +239,7 @@ def ma_removal(data_dict, sessions):
             x_acc = X_batch[:, :, 1:, :]                 # (batch_size, 1, 3, 256)
             # PPG data are targets:
             x_ppg = X_batch[:, :, :1, :]                 # (batch_size, 1, 1, 256)
+            # activity-aware element
 
             # training loop
             for epoch in range(n_epochs):
@@ -207,26 +253,25 @@ def ma_removal(data_dict, sessions):
                 loss.backward()
                 optimizer.step()
 
-                print(f'Session {s}, Batch: [{i + 1}/{idx.size - 1}], '
-                      f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
+                # print(f'Session {s}, Batch: [{i + 1}/{idx.size - 1}], '
+                #       f'Epoch [{epoch + 1}/{n_epochs}], Loss: {loss.item():.4f}')
 
             # subtract the motion artifact estimate from raw signal to extract cleaned BVP
             with torch.no_grad():
-                x_bvp = x_ppg[:, 0, 0, :] - x_ma
+                x_bvp = x_ppg[:, 0, 0, :] - model(x_acc)
 
             # get signal into original shape: (n_windows, 1, 256)
             x_bvp = torch.unsqueeze(x_bvp, dim=1).numpy()
-
-            # denormalise
             x_bvp = undo_normalisation(x_bvp, ms, stds)
-            # keep only BVP (remove ACC)
-            x_bvp = np.expand_dims(x_bvp[:,0,:], axis=1)
-
-            # append filtered batch
+            x_bvp = np.expand_dims(x_bvp[:,0,:], axis=1)            # keep only BVP (remove ACC)
             X_BVP.append(x_bvp)
 
         # add to dictionary
-        X_BVP = np.concatenate(X_BVP, axis=0)
+        X_BVP = np.concatenate(X_BVP, axis=0)                   # shape (n_windows, 1, 256)
+        print(X_BVP.shape)
+
+        # finally z-normalise each window individually to match inference
+        X_BVP = window_z_normalise(X_BVP)
 
         ppg_filt_dict[s]['bvp'] = X_BVP
         ppg_filt_dict[s]['acc'] = data_dict[s]['acc']
@@ -278,11 +323,10 @@ def main():
     sessions = [f'S{i}' for i in range(1, 16)]
 
     # comment out save or load
-    save_dict(sessions, "ppg_dalia_dict")
+    # save_dict(sessions, "ppg_dalia_dict")
 
-    # data_dict = load_dict()
-    # pass accelerometer data through CNN & save down new filtered data
-    # ma_removal(data_dict, sessions)
+    data_dict = load_dict()
+    ma_removal(data_dict, sessions)                   # pass accelerometer data through CNN & save down new filtered data
 
 
 if __name__ == '__main__':
